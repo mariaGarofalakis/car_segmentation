@@ -29,13 +29,13 @@ def preprocessing():
 def plot_images(images, masks):
 
 
-    fig, ax = plt.subplots(1, 10, figsize=(10, 3))
+    fig, ax = plt.subplots(1, 11, figsize=(10, 3))
     img = images[1]
     img = np.transpose(img, (1, 2, 0))
     ax[0].imshow(img)
 
-    for it in range(1, len(ax)):
-        ax[it].imshow(masks[1, it])
+    for it in range(1,len(ax)):
+        ax[it].imshow(masks[1, it-1])
     plt.show()
 
 

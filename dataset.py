@@ -19,15 +19,8 @@ class create_dataset(Dataset):
         image_path = os.path.join(self.image_dir, self.original_images[index])
         image = np.load(image_path)
 
-        image[0, :, :] = (image[0, :, :] - np.min(image[0, :, :])) / np.ptp(image[0, :, :])
-        image[1, :, :] = (image[1, :, :] - np.min(image[1, :, :])) / np.ptp(image[1, :, :])
-        image[2, :, :] = (image[2, :, :] - np.min(image[2, :, :])) / np.ptp(image[2, :, :])
-
-        final_image = torch.tensor(image[:3])
-
-
 
         if self.transform is not None:
-            final_image = self.transform(final_image)
+                final_image = self.transform(image)
 
         return final_image

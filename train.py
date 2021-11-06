@@ -3,8 +3,7 @@ import torch
 import torchvision
 import matplotlib.pyplot as plt
 from utilis import get_loaders
-from PIL import Image, ImageFilter
-from matplotlib import cm
+from transormations import Rescale, Normalize
 
 # Hyperparameters etc.
 LEARNING_RATE = 1e-4
@@ -21,9 +20,9 @@ LOAD_MODEL = False
 def plot_images(img):
 
 
-    img = img.numpy()
-    img = np.transpose(img, (1, 2, 0))
-    plt.imshow(img)
+ #   img = img.numpy()
+  #  img = np.transpose(img, (1, 2, 0))
+    plt.imshow(img[:,:,:3])
     plt.show()
 
 
@@ -43,7 +42,9 @@ if __name__ == '__main__':
    #     torchvision.transforms.RandomCrop(224),
    #     torchvision.transforms.RandomHorizontalFlip(),
       #  torchvision.transforms.ToTensor(),
-        torchvision.transforms.Grayscale()
+        Normalize(),
+        Rescale(150),
+  #      torchvision.transforms.Grayscale()
             ])
 
     train_loader = get_loaders(train_dir=TRAIN_IMG_DIR, batch_size=BATCH_SIZE, train_transform=transform, num_workers=NUM_WORKERS,
