@@ -18,18 +18,13 @@ IMAGE_WIDTH = 240  # 1918 originally
 PIN_MEMORY = True
 LOAD_MODEL = False
 
-def imshow(img):
+def plot_images(img):
 
 
-    w, h = 512, 512
-
-
-    npimg = img.numpy()
-    skata = np.transpose(npimg, (1, 2, 0))
-
-    im = Image.fromarray(np.uint8(cm.gist_earth(skata) * 255))
-
-    im.save()
+    img = img.numpy()
+    img = np.transpose(img, (1, 2, 0))
+    plt.imshow(img)
+    plt.show()
 
 
 
@@ -37,7 +32,7 @@ def imshow(img):
 def train_fn(loader):
 
     data = next(iter(loader))
-    imshow(data[0])
+    plot_images(data[0])
 
 
 
@@ -48,7 +43,8 @@ if __name__ == '__main__':
    #     torchvision.transforms.RandomCrop(224),
    #     torchvision.transforms.RandomHorizontalFlip(),
       #  torchvision.transforms.ToTensor(),
-            torchvision.transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
+        torchvision.transforms.Grayscale()
+            ])
 
     train_loader = get_loaders(train_dir=TRAIN_IMG_DIR, batch_size=BATCH_SIZE, train_transform=transform, num_workers=NUM_WORKERS,
                                pin_memory=PIN_MEMORY)
