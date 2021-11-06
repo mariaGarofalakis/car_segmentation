@@ -3,7 +3,7 @@ import torch
 import torchvision
 import matplotlib.pyplot as plt
 from utilis import get_loaders
-from transormations import Rescale, Normalize, ToTensor
+from my_transormations import Rescale, Normalize, ToTensor
 
 # Hyperparameters etc.
 LEARNING_RATE = 1e-4

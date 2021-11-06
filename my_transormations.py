@@ -1,7 +1,7 @@
 import torch
 from skimage import io, transform
 import numpy as np
-
+import cv2
 
 class Normalize(object):
     """Normalize image between 0-1
