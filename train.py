@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torchvision
 import matplotlib.pyplot as plt
-from my_utilis import get_loaders
+from utilis import get_loaders
 from PIL import Image, ImageFilter
 from matplotlib import cm
 
