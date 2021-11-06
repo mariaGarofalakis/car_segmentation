@@ -3,7 +3,7 @@ import torch
 import torchvision
 import matplotlib.pyplot as plt
 from utilis import get_loaders
-from transormations import Rescale, Normalize
+from transormations import Rescale, Normalize, ToTensor
 
 # Hyperparameters etc.
 LEARNING_RATE = 1e-4
@@ -17,12 +17,20 @@ IMAGE_WIDTH = 240  # 1918 originally
 PIN_MEMORY = True
 LOAD_MODEL = False
 
-def plot_images(img):
+def plot_images(data):
 
 
- #   img = img.numpy()
-  #  img = np.transpose(img, (1, 2, 0))
-    plt.imshow(img[:,:,:3])
+    data = data.numpy()
+    img = data[:3,:,:]
+    img = np.transpose(img, (1, 2, 0))
+    masks = data[3:,:,:]
+    masks = np.transpose(masks, (1, 2, 0))
+
+    fig, ax = plt.subplots(1, 11, figsize=(10, 3))
+    ax[0].imshow(img)
+
+    for it in range(1, len(ax)):
+        ax[it].imshow(masks[:,:,it - 1])
     plt.show()
 
 
@@ -41,10 +49,10 @@ if __name__ == '__main__':
    #     torchvision.transforms.Resize(256),
    #     torchvision.transforms.RandomCrop(224),
    #     torchvision.transforms.RandomHorizontalFlip(),
-      #  torchvision.transforms.ToTensor(),
         Normalize(),
         Rescale(150),
-  #      torchvision.transforms.Grayscale()
+   #     Grayscale(),
+        ToTensor(),
             ])
 
     train_loader = get_loaders(train_dir=TRAIN_IMG_DIR, batch_size=BATCH_SIZE, train_transform=transform, num_workers=NUM_WORKERS,

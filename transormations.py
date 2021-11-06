@@ -1,9 +1,11 @@
-from torchvision import transforms, utils
+import torch
 from skimage import io, transform
 import numpy as np
 
 
 class Normalize(object):
+    """Normalize image between 0-1
+        """
     def __call__(self,sample):
         sample[0, :, :] = (sample[0, :, :] - np.min(sample[0, :, :])) / np.ptp(sample[0, :, :])
         sample[1, :, :] = (sample[1, :, :] - np.min(sample[1, :, :])) / np.ptp(sample[1, :, :])
@@ -47,6 +49,22 @@ class Rescale(object):
         rescaled_sample = np.concatenate((image, masks), axis=2)
 
         return rescaled_sample
+
+#class Grayscale(object):
+#    """Convert RBG image in sample to Grayscale."""
+#    def __call__(self, sample):
+#        sample[:, :, :3] = np.dot(sample[:, :, :3], [0.299, 0.587, 0.144])
+#        return sample
+
+
+class ToTensor(object):
+    """Convert ndarrays in sample to Tensors."""
+
+    def __call__(self, sample):
+        sample = sample.transpose((2, 0, 1))
+        return torch.from_numpy(sample)
+
+
 
 
 
