@@ -11,7 +11,8 @@ def preprocessing():
     all_images = os.listdir(image_dir)
     original_images = [x for x in all_images if '_a.' in x]
 
-    normalized_images = np.zeros((len(original_images),3,256, 256))
+    normalized_images = np.zeros((len(original_images), 3, 256, 256))
+    masks = np.zeros((len(original_images), 10, 256, 256))
 
     for imgag_idx, original_image in enumerate(original_images):
         image_path = os.path.join(image_dir, original_image)
@@ -21,19 +22,25 @@ def preprocessing():
         normalized_images[imgag_idx, 1, :, :] = (image[1, :, :] - np.min(image[1, :, :])) / np.ptp(image[1, :, :])
         normalized_images[imgag_idx, 2, :, :] = (image[2, :, :] - np.min(image[2, :, :])) / np.ptp(image[2, :, :])
 
-    return normalized_images
+        masks[imgag_idx, :, :] = image[3:, :, :]
 
-def plot_images(images):
+    return normalized_images, masks
 
+def plot_images(images, masks):
+
+
+    fig, ax = plt.subplots(1, 10, figsize=(10, 3))
     img = images[1]
     img = np.transpose(img, (1, 2, 0))
-    imgplot = plt.imshow(img)
+    ax[0].imshow(img)
+
+    for it in range(1, len(ax)):
+        ax[it].imshow(masks[1, it])
     plt.show()
 
 
 
 
-
 if __name__ == '__main__':
-    normalized_images = preprocessing()
-    plot_images(normalized_images)
+    normalized_images, masks = preprocessing()
+    plot_images(normalized_images, masks)
