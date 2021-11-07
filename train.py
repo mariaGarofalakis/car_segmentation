@@ -3,7 +3,7 @@ import torch
 import torchvision
 import matplotlib.pyplot as plt
 from utilis import get_loaders
-from transforms import Rescale, Normalize, ToTensor
+from transforms import Rescale, Normalize, ToTensor, randomHueSaturationValue, randomHorizontalFlip, randomZoom, Grayscale, randomShiftScaleRotate
 
 # Hyperparameters etc.
 LEARNING_RATE = 1e-4
@@ -21,8 +21,9 @@ def plot_images(data):
 
 
     data = data.numpy()
-    image = data[:3]
-    masks = data[3:]
+    image = data[0,:,:]
+    image = np.expand_dims(image, axis=0)
+    masks = data[1:]
 
     img = np.transpose(image, (1, 2, 0))
 
@@ -52,8 +53,12 @@ if __name__ == '__main__':
    #     torchvision.transforms.RandomCrop(224),
    #     torchvision.transforms.RandomHorizontalFlip(),
         Normalize(),
-        Rescale(150),
-   #     Grayscale(),
+        Rescale(256),
+        Grayscale(),
+        randomHorizontalFlip(),
+ #       randomShiftScaleRotate(),
+      #  randomHueSaturationValue(),
+      #  randomZoom(),
         ToTensor(),
             ])
 
