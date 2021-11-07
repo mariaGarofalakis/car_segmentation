@@ -20,7 +20,8 @@ class create_dataset(Dataset):
         image = np.load(image_path)
 
 
-        if self.transform is not None:
-                final_image = self.transform(image)
 
-        return final_image
+        if self.transform is not None:
+            image = self.transform(image)
+
+        return image

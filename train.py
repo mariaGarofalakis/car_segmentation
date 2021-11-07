@@ -3,7 +3,7 @@ import torch
 import torchvision
 import matplotlib.pyplot as plt
 from utilis import get_loaders
-from my_transormations import Rescale, Normalize, ToTensor
+from transforms import Rescale, Normalize, ToTensor
 
 # Hyperparameters etc.
 LEARNING_RATE = 1e-4
@@ -21,9 +21,11 @@ def plot_images(data):
 
 
     data = data.numpy()
-    img = data[:3,:,:]
-    img = np.transpose(img, (1, 2, 0))
-    masks = data[3:,:,:]
+    image = data[:3]
+    masks = data[3:]
+
+    img = np.transpose(image, (1, 2, 0))
+
     masks = np.transpose(masks, (1, 2, 0))
 
     fig, ax = plt.subplots(1, 11, figsize=(10, 3))
@@ -38,8 +40,8 @@ def plot_images(data):
 
 def train_fn(loader):
 
-    data = next(iter(loader))
-    plot_images(data[0])
+    image = next(iter(loader))
+    plot_images(image[0])
 
 
 
