@@ -20,10 +20,12 @@ LOAD_MODEL = False
 def plot_images(data):
 
 
-    data = data.numpy()
+    data = data.numpy().astype(np.uint8)
     image = data[:3,:,:]
  #   image = np.expand_dims(image, axis=0)
     masks = data[3:]
+
+
 
     img = np.transpose(image, (1, 2, 0))
 
