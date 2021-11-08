@@ -21,9 +21,9 @@ def plot_images(data):
 
 
     data = data.numpy()
-    image = data[0,:,:]
-    image = np.expand_dims(image, axis=0)
-    masks = data[1:]
+    image = data[:3,:,:]
+ #   image = np.expand_dims(image, axis=0)
+    masks = data[3:]
 
     img = np.transpose(image, (1, 2, 0))
 
@@ -54,11 +54,11 @@ if __name__ == '__main__':
    #     torchvision.transforms.RandomHorizontalFlip(),
         Normalize(),
         Rescale(256),
-        Grayscale(),
+     #   Grayscale(),
         randomHorizontalFlip(),
- #       randomShiftScaleRotate(),
-      #  randomHueSaturationValue(),
-      #  randomZoom(),
+        randomShiftScaleRotate(),
+        randomHueSaturationValue(),
+        randomZoom(),
         ToTensor(),
             ])
 

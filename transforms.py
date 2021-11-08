@@ -8,9 +8,9 @@ class Normalize(object):
     """Normalize image between 0-1
         """
     def __call__(self,sample):
-        sample[0, :, :] = (sample[0, :, :] - np.min(sample[0, :, :])) / np.ptp(sample[0, :, :])
-        sample[1, :, :] = (sample[1, :, :] - np.min(sample[1, :, :])) / np.ptp(sample[1, :, :])
-        sample[2, :, :] = (sample[2, :, :] - np.min(sample[2, :, :])) / np.ptp(sample[2, :, :])
+        sample[0, :, :] = 255 * (sample[0, :, :] - np.min(sample[0, :, :])) / np.ptp(sample[0, :, :])
+        sample[1, :, :] = 255 * (sample[1, :, :] - np.min(sample[1, :, :])) / np.ptp(sample[1, :, :])
+        sample[2, :, :] = 255 * (sample[2, :, :] - np.min(sample[2, :, :])) / np.ptp(sample[2, :, :])
 
         return sample
 
@@ -128,8 +128,8 @@ class randomShiftScaleRotate(object):
     def __call__(self,samples):
 
 
-        image = np.array(samples[:,:,:1], np.uint8)
-        mask = np.array(samples[:,:,1:], np.uint8)
+        image = np.array(samples[:,:,:3], np.uint8)
+        mask = np.array(samples[:,:,3:], np.uint8)
         image = image[:, :, ::-1].copy()
         mask = mask[:, :, ::-1].copy()
 
@@ -161,11 +161,12 @@ class randomShiftScaleRotate(object):
                                        borderValue=(0, 0, 0,))
             if len(mask.shape) == 2:
                 mask = np.expand_dims(mask, axis=2)
-            image = np.expand_dims(image, axis=2)
+            if len(image.shape) == 2:
+                image = np.expand_dims(image, axis=2)
 
 
-        samples[:, :, :1]=image
-        samples[:, :, 1:] = mask
+        samples[:, :, :3]=image
+        samples[:, :, 3:] = mask
 
         return samples
 
@@ -175,19 +176,20 @@ class randomHorizontalFlip(object):
         self.u = u
 
     def __call__(self,samples):
-        image = np.array(samples[:,:,:1], np.uint8)
-        mask = np.array(samples[:,:,1:], np.uint8)
+        image = np.array(samples[:,:,:3], np.uint8)
+        mask = np.array(samples[:,:,3:], np.uint8)
         image = image[:, :, ::-1].copy()
         mask = mask[:, :, ::-1].copy()
 
         if np.random.random() < self.u:
             image = cv2.flip(image, 1)
             mask = cv2.flip(mask, 1)
-            image = np.expand_dims(image, axis=2)
+            if len(image.shape) == 2:
+                image = np.expand_dims(image, axis=2)
 
 
-        samples[:, :, :1] = image
-        samples[:, :, 1:] = mask
+        samples[:, :, :3] = image
+        samples[:, :, 3:] = mask
 
         return samples
 
@@ -199,8 +201,8 @@ class randomZoom(object):
         self.u = u
 
     def __call__(self,samples):
-        image = np.array(samples[:,:,:1], np.uint8)
-        mask = np.array(samples[:,:,1:], np.uint8)
+        image = np.array(samples[:,:,:3], np.uint8)
+        mask = np.array(samples[:,:,3:], np.uint8)
         image = image[:, :, ::-1].copy()
         mask = mask[:, :, ::-1].copy()
 
@@ -215,12 +217,13 @@ class randomZoom(object):
             mask = mask[h_start:h_start + h_taken, w_start:w_start + w_taken, :]
             image = cv2.resize(image, (h, w), cv2.INTER_CUBIC)
             mask = cv2.resize(mask, (h, w), cv2.INTER_CUBIC)
-            image = np.expand_dims(image, axis=2)
+            if len(image.shape) == 2:
+                image = np.expand_dims(image, axis=2)
 
         image = image[:, :, ::-1].copy()
         mask = mask[:, :, ::-1].copy()
 
-        samples[:, :, :1] = image
-        samples[:, :, 1:] = mask
+        samples[:, :, :3] = image
+        samples[:, :, 3:] = mask
 
         return samples
