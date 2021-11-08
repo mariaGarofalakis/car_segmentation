@@ -9,7 +9,7 @@ def preprocessing():
     print('perform preprocessing')
     image_dir = TRAIN_IMG_DIR
     all_images = os.listdir(image_dir)
-    original_images = [x for x in all_images if '_a.' in x]
+    original_images = [x for x in all_images if '_a.' and 'DOOR' and 'OPEL' in x]
 
     normalized_images = np.zeros((len(original_images), 3, 256, 256))
     masks = np.zeros((len(original_images), 10, 256, 256))
