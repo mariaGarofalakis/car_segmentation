@@ -21,10 +21,10 @@ LEARNING_RATE = 1e-4
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 TRAIN_IMG_DIR = "C:/Users/maria/Desktop/mathimata/deep/project/car_segmentation_2021/clean_data"
 BATCH_SIZE = 8
-NUM_EPOCHS = 3
+NUM_EPOCHS = 50
 NUM_WORKERS = 2
-IMAGE_HEIGHT = 160  # 1280 originally
-IMAGE_WIDTH = 240  # 1918 originally
+IMAGE_HEIGHT = 256  # 1280 originally
+IMAGE_WIDTH = 256  # 1918 originally
 PIN_MEMORY = True
 LOAD_MODEL = True
 
@@ -59,9 +59,10 @@ def train_fn(loader, model, optimizer, loss_fn, scaler):
 
     for batch_idx, all_data in enumerate(loop):
         data = all_data[:, 0, :, :]
-        targets = all_data[:, 1, :, :]
+        targets = all_data[:, 2:, :, :]
         data = data.float().unsqueeze(1).to(device=DEVICE)
-        targets = targets.float().unsqueeze(1).to(device=DEVICE)
+        targets = targets.float().to(device=DEVICE)
+    #    targets = targets.float().unsqueeze(1).to(device=DEVICE)
 
         # forward
         with torch.cuda.amp.autocast():
@@ -100,8 +101,8 @@ def main():
         ToTensor(),
     ])
 
-    model = UNET(in_channels=1, out_channels=1).to(DEVICE)
-    loss_fn = nn.BCEWithLogitsLoss()
+    model = UNET(in_channels=1, out_channels=9).to(DEVICE)
+    loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     train_loader, test_loader = get_loaders(
@@ -117,7 +118,7 @@ def main():
         load_checkpoint(torch.load("my_checkpoint.pth.tar"), model)
 
 
-    check_accuracy(test_loader, model, device=DEVICE)
+ #   check_accuracy(test_loader, model, device=DEVICE)
     scaler = torch.cuda.amp.GradScaler()
 
     for epoch in range(NUM_EPOCHS):

@@ -13,11 +13,14 @@ def load_checkpoint(checkpoint, model):
     model.load_state_dict(checkpoint["state_dict"])
 
 def get_loaders(train_dir, batch_size, train_transform, test_transform, num_workers=4, pin_memory=True):
-
+    train_ds_original = create_dataset(image_dir=train_dir, train=True, transform = test_transform)
     train_ds = create_dataset(image_dir=train_dir, train=True, transform = train_transform)
-    train_loader = DataLoader(train_ds, batch_size=batch_size,num_workers=num_workers,
+
+    con_Dataset = torch.utils.data.ConcatDataset([train_ds_original, train_ds])
+    train_loader = DataLoader(con_Dataset, batch_size=batch_size,num_workers=num_workers,
         pin_memory=pin_memory,
         shuffle=True)
+
 
     test_ds = create_dataset(
         image_dir=train_dir, train=False, transform = test_transform
@@ -42,9 +45,10 @@ def check_accuracy(loader, model, device="cuda"):
     with torch.no_grad():
         for all_data in loader:
             x = all_data[:, 0, :, :]
-            y = all_data[:, 1, :, :]
+            y = all_data[:, 2:, :, :]
             x = x.float().unsqueeze(1).to(device=DEVICE)
-            y = y.float().unsqueeze(1).to(device=DEVICE)
+            y = y.float().to(device=DEVICE)
+    #        y = y.float().unsqueeze(1).to(device=DEVICE)
 
 
             preds = torch.sigmoid(model(x))
@@ -67,17 +71,19 @@ def save_predictions_as_imgs(
     model.eval()
     for idx, all_data in enumerate(loader):
         x = all_data[:, 0, :, :]
-        y = all_data[:, 1, :, :]
+        y = all_data[:, 2:, :, :]
         x = x.float().unsqueeze(1).to(device=DEVICE)
-        y = y.float().unsqueeze(1)
+     #   y = y.float().unsqueeze(1)
 
 
         with torch.no_grad():
             preds = torch.sigmoid(model(x))
             preds = (preds > 0.5).float()
-        torchvision.utils.save_image(
-            preds, f"{folder}/pred_{idx}.png"
-        )
-        torchvision.utils.save_image(y, f"{folder}{idx}.png")
+
+        for itr in range(9):
+            torchvision.utils.save_image(
+                preds[:, itr, :, :].unsqueeze(1), f"{folder}/pred_{idx}_itr_{itr}.png"
+            )
+            torchvision.utils.save_image(y[:, itr, :, :].unsqueeze(1), f"{folder}{idx}_itr_{itr}.png")
 
     model.train()
