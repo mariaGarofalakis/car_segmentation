@@ -48,14 +48,17 @@ def check_accuracy( train_loader ,test_loader, model, device="cuda"):
     with torch.no_grad():
         for all_data in test_loader:
             x = all_data[:, 0, :, :]
-            y = all_data[:, 2:, :, :]
+            y = all_data[:, 1:10, :, :]
             x = x.float().unsqueeze(1).to(device=DEVICE)
             y = y.float().to(device=DEVICE)
     #        y = y.float().unsqueeze(1).to(device=DEVICE)
 
+            preds = torch.softmax(model(x), 1)
+            preds = preds.cpu()
+            preds = torch.zeros(preds.shape).scatter(1, preds.argmax(1).unsqueeze(1), 1.0)
+            # preds = (preds = max_preds).float()
+            preds = preds.cuda()
 
-            preds = torch.sigmoid(model(x))
-            preds = (preds > 0.5).float()
             num_correct_test += (preds == y).sum()
             num_pixels_test += torch.numel(preds)
             dice_score_test += (2 * (preds * y).sum()) / (
@@ -69,13 +72,17 @@ def check_accuracy( train_loader ,test_loader, model, device="cuda"):
     with torch.no_grad():
         for all_data in train_loader:
             x = all_data[:, 0, :, :]
-            y = all_data[:, 2:, :, :]
+            y = all_data[:, 1:10, :, :]
             x = x.float().unsqueeze(1).to(device=DEVICE)
             y = y.float().to(device=DEVICE)
             #        y = y.float().unsqueeze(1).to(device=DEVICE)
 
-            preds = torch.sigmoid(model(x))
-            preds = (preds > 0.5).float()
+            preds = torch.softmax(model(x), 1)
+            preds = preds.cpu()
+            preds = torch.zeros(preds.shape).scatter(1, preds.argmax(1).unsqueeze(1), 1.0)
+            # preds = (preds = max_preds).float()
+            preds = preds.cuda()
+
             num_correct_train += (preds == y).sum()
             num_pixels_train += torch.numel(preds)
             dice_score_train += (2 * (preds * y).sum()) / (
@@ -92,14 +99,17 @@ def save_predictions_as_imgs(
     model.eval()
     for idx, all_data in enumerate(loader):
         x = all_data[:, 0, :, :]
-        y = all_data[:, 2:, :, :]
+        y = all_data[:, 1:10, :, :]
         x = x.float().unsqueeze(1).to(device=DEVICE)
      #   y = y.float().unsqueeze(1)
 
 
         with torch.no_grad():
-            preds = torch.sigmoid(model(x))
-            preds = (preds > 0.5).float()
+            preds = torch.softmax(model(x),1)
+            preds = preds.cpu()
+            preds = torch.zeros(preds.shape).scatter(1, preds.argmax(1).unsqueeze(1), 1.0)
+            #preds = (preds = max_preds).float()
+            preds = preds.cuda()
 
         for itr in range(9):
             torchvision.utils.save_image(

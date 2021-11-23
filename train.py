@@ -26,7 +26,7 @@ NUM_WORKERS = 2
 IMAGE_HEIGHT = 256  # 1280 originally
 IMAGE_WIDTH = 256  # 1918 originally
 PIN_MEMORY = True
-LOAD_MODEL = False
+LOAD_MODEL = True
 
 
 
@@ -59,7 +59,7 @@ def train_fn(loader, model, optimizer, loss_fn, scaler):
 
     for batch_idx, all_data in enumerate(loop):
         data = all_data[:, 0, :, :]
-        targets = all_data[:, 2:, :, :]
+        targets = all_data[:, 1:10, :, :]
         data = data.float().unsqueeze(1).to(device=DEVICE)
         targets = targets.float().to(device=DEVICE)
     #    targets = targets.float().unsqueeze(1).to(device=DEVICE)
