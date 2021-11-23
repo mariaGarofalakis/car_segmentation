@@ -23,8 +23,8 @@ TRAIN_IMG_DIR = r'C:\Users\aleko\Desktop\segmentation_data\clean_data\clean_data
 BATCH_SIZE = 6
 NUM_EPOCHS = 50
 NUM_WORKERS = 2
-IMAGE_HEIGHT = 256  # 1280 originally
-IMAGE_WIDTH = 256  # 1918 originally
+IMAGE_HEIGHT = 256
+IMAGE_WIDTH = 256
 PIN_MEMORY = True
 LOAD_MODEL = True
 
@@ -50,8 +50,6 @@ def plot_images(data):
     for it in range(1, len(ax)):
         ax[it].imshow(masks[:,:,it - 1])
     plt.show()
-
-
 
 
 def train_fn(loader, model, optimizer, loss_fn, scaler):
