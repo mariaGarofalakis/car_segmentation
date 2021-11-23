@@ -89,9 +89,9 @@ def main():
         Normalize(),
         Rescale(256),
         randomHorizontalFlip(),
-            randomShiftScaleRotate(),
-    #   randomHueSaturationValue(),
-   #     randomZoom(),
+         randomShiftScaleRotate(),
+       randomHueSaturationValue(),
+        randomZoom(),
         Grayscale(),
         ToTensor(),
     ])
@@ -124,6 +124,12 @@ def main():
  #   check_accuracy(test_loader, model, device=DEVICE)
     scaler = torch.cuda.amp.GradScaler()
 
+    test_accuracy = []
+    test_dice = []
+    train_accuracy = []
+    train_dice = []
+    train_iter = []
+
     for epoch in range(NUM_EPOCHS):
         train_fn(train_loader, model, optimizer, loss_fn, scaler)
 
@@ -135,14 +141,31 @@ def main():
         save_checkpoint(checkpoint)
 
         # check accuracy
-        check_accuracy(test_loader, model, device=DEVICE)
+
+
+        train_tmp, train_tmp_dc, test_tmp, test_tmp_dc = check_accuracy(train_loader, test_loader, model, device=DEVICE)
+        train_accuracy.append(train_tmp.cpu() * 100)
+        train_dice.append(train_tmp_dc.cpu())
+        test_accuracy.append(test_tmp.cpu() * 100)
+        test_dice.append(test_tmp_dc.cpu())
+        train_iter.append(epoch)
+
 
         # print some examples to a folder
         save_predictions_as_imgs(
             test_loader, model, folder="saved_images/", device=DEVICE
         )
 
-
+        fig = plt.figure(figsize=(12, 4))
+        plt.subplot(1, 2, 1)
+        plt.plot(train_iter, train_accuracy, label='train_loss')
+        plt.plot(train_iter, test_accuracy, label='valid_loss')
+        plt.legend()
+        plt.subplot(1, 2, 2)
+        plt.plot(train_iter, train_dice, label='train_accs')
+        plt.plot(train_iter, test_dice, label='valid_accs')
+        plt.legend()
+        plt.savefig('metrics.png')
 
 
 if __name__ == '__main__':
