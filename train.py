@@ -19,12 +19,12 @@ from utilis import (
 # Hyperparameters etc.
 LEARNING_RATE = 1e-4
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-TRAIN_IMG_DIR = "C:/Users/maria/Desktop/mathimata/deep/project/car_segmentation_2021/clean_data"
-BATCH_SIZE = 8
-NUM_EPOCHS = 3
+TRAIN_IMG_DIR = r'C:\Users\aleko\Desktop\segmentation_data\clean_data\clean_data'
+BATCH_SIZE = 6
+NUM_EPOCHS = 50
 NUM_WORKERS = 2
-IMAGE_HEIGHT = 160  # 1280 originally
-IMAGE_WIDTH = 240  # 1918 originally
+IMAGE_HEIGHT = 256  # 1280 originally
+IMAGE_WIDTH = 256  # 1918 originally
 PIN_MEMORY = True
 LOAD_MODEL = True
 
@@ -59,9 +59,10 @@ def train_fn(loader, model, optimizer, loss_fn, scaler):
 
     for batch_idx, all_data in enumerate(loop):
         data = all_data[:, 0, :, :]
-        targets = all_data[:, 1, :, :]
+        targets = all_data[:, 1:10, :, :]
         data = data.float().unsqueeze(1).to(device=DEVICE)
-        targets = targets.float().unsqueeze(1).to(device=DEVICE)
+        targets = targets.float().to(device=DEVICE)
+    #    targets = targets.float().unsqueeze(1).to(device=DEVICE)
 
         # forward
         with torch.cuda.amp.autocast():
@@ -100,8 +101,8 @@ def main():
         ToTensor(),
     ])
 
-    model = UNET(in_channels=1, out_channels=1).to(DEVICE)
-    loss_fn = nn.BCEWithLogitsLoss()
+    model = UNET(in_channels=1, out_channels=9).to(DEVICE)
+    loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     train_loader, test_loader = get_loaders(
@@ -117,8 +118,14 @@ def main():
         load_checkpoint(torch.load("my_checkpoint.pth.tar"), model)
 
 
-    check_accuracy(test_loader, model, device=DEVICE)
+ #   check_accuracy(test_loader, model, device=DEVICE)
     scaler = torch.cuda.amp.GradScaler()
+
+    test_accuracy = []
+    test_dice = []
+    train_accuracy = []
+    train_dice = []
+    train_iter = []
 
     for epoch in range(NUM_EPOCHS):
         train_fn(train_loader, model, optimizer, loss_fn, scaler)
@@ -130,16 +137,34 @@ def main():
         }
         save_checkpoint(checkpoint)
 
+        train_tmp = 0.0
+        train_tmp_dc = 0.0
+        test_tmp = 0.0
+        test_tmp_dc = 0.0
+
         # check accuracy
-        check_accuracy(test_loader, model, device=DEVICE)
+        train_tmp,train_tmp_dc,test_tmp,test_tmp_dc = check_accuracy( train_loader ,test_loader, model, device=DEVICE)
+        train_accuracy.append(train_tmp*100)
+        train_dice.append(train_tmp_dc)
+        test_accuracy.append(test_tmp*100)
+        test_dice.append(test_tmp_dc)
+        train_iter.append(epoch)
 
         # print some examples to a folder
         save_predictions_as_imgs(
             test_loader, model, folder="saved_images/", device=DEVICE
         )
 
-
-
+        fig = plt.figure(figsize=(12, 4))
+        plt.subplot(1, 2, 1)
+        plt.plot(train_iter, train_accuracy, label='train_loss')
+        plt.plot(train_iter, test_accuracy, label='valid_loss')
+        plt.legend()
+        plt.subplot(1, 2, 2)
+        plt.plot(train_iter, train_dice, label='train_accs')
+        plt.plot(train_iter, test_dice, label='valid_accs')
+        plt.legend()
+        plt.savefig('metrics.png')
 
 if __name__ == '__main__':
     main()

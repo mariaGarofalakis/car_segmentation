@@ -8,9 +8,14 @@ class Normalize(object):
     """Normalize image between 0-1
         """
     def __call__(self,sample):
-        sample[0, :, :] = (sample[0, :, :] + 0.485 / 0.229 - 0.485) / 0.229
-        sample[1, :, :] = (sample[1, :, :] + 0.456 / 0.224 - 0.456) / 0.224
-        sample[2, :, :] = (sample[2, :, :] + 0.406 / 0.225 - 0.406) / 0.225
+        sample[0, :, :] = 255 * (sample[0, :, :] - np.min(sample[0, :, :])) / np.ptp(sample[0, :, :])
+        sample[1, :, :] = 255 * (sample[1, :, :] - np.min(sample[1, :, :])) / np.ptp(sample[1, :, :])
+        sample[2, :, :] = 255 * (sample[2, :, :] - np.min(sample[2, :, :])) / np.ptp(sample[2, :, :])
+
+
+        #sample[0, :, :] = (sample[0, :, :] + 0.485 / 0.229 - 0.485) / 0.229
+        #sample[1, :, :] = (sample[1, :, :] + 0.456 / 0.224 - 0.456) / 0.224
+        #sample[2, :, :] = (sample[2, :, :] + 0.406 / 0.225 - 0.406) / 0.225
 
         return sample
 
