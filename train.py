@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from model import UNET
 import torch.nn as nn
+import DiceBCELoss
 import torch.optim as optim
 from transforms import Rescale, Normalize, ToTensor, randomHueSaturationValue, randomHorizontalFlip, randomZoom, Grayscale, randomShiftScaleRotate
 from utilis import (
@@ -19,14 +20,17 @@ from utilis import (
 # Hyperparameters etc.
 LEARNING_RATE = 1e-4
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-TRAIN_IMG_DIR = r'C:\Users\aleko\Desktop\segmentation_data\clean_data\clean_data'
-BATCH_SIZE = 6
-NUM_EPOCHS = 50
+
+TRAIN_IMG_DIR = "C:/Users/maria/Desktop/project_deep/car_segmentation/trainset"
+TEST_IMG_DIR = "C:/Users/maria/Desktop/project_deep/car_segmentation/testset"
+BATCH_SIZE = 8
+NUM_EPOCHS = 100
+
 NUM_WORKERS = 2
 IMAGE_HEIGHT = 256  # 1280 originally
 IMAGE_WIDTH = 256  # 1918 originally
 PIN_MEMORY = True
-LOAD_MODEL = True
+LOAD_MODEL = False
 
 
 
@@ -87,8 +91,8 @@ def main():
         Normalize(),
         Rescale(256),
         randomHorizontalFlip(),
-        randomShiftScaleRotate(),
-        randomHueSaturationValue(),
+         randomShiftScaleRotate(),
+       randomHueSaturationValue(),
         randomZoom(),
         Grayscale(),
         ToTensor(),
@@ -102,11 +106,12 @@ def main():
     ])
 
     model = UNET(in_channels=1, out_channels=9).to(DEVICE)
-    loss_fn = nn.CrossEntropyLoss()
+ #   loss_fn = nn.CrossEntropyLoss() #softDice   weighted average of both
+    loss_fn = DiceBCELoss.DiceBCELoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     train_loader, test_loader = get_loaders(
-        TRAIN_IMG_DIR,
+        TEST_IMG_DIR,
         BATCH_SIZE,
         train_transform,
         test_transforms,
@@ -143,12 +148,14 @@ def main():
         test_tmp_dc = 0.0
 
         # check accuracy
+
         train_tmp,train_tmp_dc,test_tmp,test_tmp_dc = check_accuracy( train_loader ,test_loader, model, device=DEVICE)
         train_accuracy.append(train_tmp*100)
         train_dice.append(train_tmp_dc)
         test_accuracy.append(test_tmp*100)
         test_dice.append(test_tmp_dc)
         train_iter.append(epoch)
+
 
         # print some examples to a folder
         save_predictions_as_imgs(
@@ -165,6 +172,7 @@ def main():
         plt.plot(train_iter, test_dice, label='valid_accs')
         plt.legend()
         plt.savefig('metrics.png')
+
 
 if __name__ == '__main__':
     main()
