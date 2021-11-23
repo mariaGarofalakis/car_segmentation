@@ -2,6 +2,8 @@ import torch
 import torchvision
 from dataset import create_dataset
 from torch.utils.data import DataLoader
+import torch.nn as nn
+import torch.nn.functional as F
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 def save_checkpoint(state, filename="my_checkpoint.pth.tar"):
@@ -16,8 +18,8 @@ def get_loaders(train_dir, batch_size, train_transform, test_transform, num_work
     train_ds_original = create_dataset(image_dir=train_dir, train=True, transform = test_transform)
     train_ds = create_dataset(image_dir=train_dir, train=True, transform = train_transform)
 
-    con_Dataset = torch.utils.data.ConcatDataset([train_ds_original, train_ds])
-    train_loader = DataLoader(con_Dataset, batch_size=batch_size,num_workers=num_workers,
+ #   con_Dataset = torch.utils.data.ConcatDataset([train_ds_original, train_ds])
+    train_loader = DataLoader(train_ds, batch_size=batch_size,num_workers=num_workers,
         pin_memory=pin_memory,
         shuffle=True)
 
@@ -36,6 +38,8 @@ def get_loaders(train_dir, batch_size, train_transform, test_transform, num_work
 
     return train_loader, test_loader
 
+
+
 def check_accuracy(loader, model, device="cuda"):
     num_correct = 0
     num_pixels = 0
@@ -45,7 +49,7 @@ def check_accuracy(loader, model, device="cuda"):
     with torch.no_grad():
         for all_data in loader:
             x = all_data[:, 0, :, :]
-            y = all_data[:, 2:, :, :]
+            y = all_data[:, 1:10, :, :]
             x = x.float().unsqueeze(1).to(device=DEVICE)
             y = y.float().to(device=DEVICE)
     #        y = y.float().unsqueeze(1).to(device=DEVICE)
@@ -71,7 +75,7 @@ def save_predictions_as_imgs(
     model.eval()
     for idx, all_data in enumerate(loader):
         x = all_data[:, 0, :, :]
-        y = all_data[:, 2:, :, :]
+        y = all_data[:, 1:10, :, :]
         x = x.float().unsqueeze(1).to(device=DEVICE)
      #   y = y.float().unsqueeze(1)
 

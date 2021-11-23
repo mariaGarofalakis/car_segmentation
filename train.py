@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from model import UNET
 import torch.nn as nn
+import DiceBCELoss
 import torch.optim as optim
 from transforms import Rescale, Normalize, ToTensor, randomHueSaturationValue, randomHorizontalFlip, randomZoom, Grayscale, randomShiftScaleRotate
 from utilis import (
@@ -19,14 +20,15 @@ from utilis import (
 # Hyperparameters etc.
 LEARNING_RATE = 1e-4
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-TRAIN_IMG_DIR = "C:/Users/maria/Desktop/mathimata/deep/project/car_segmentation_2021/clean_data"
+TRAIN_IMG_DIR = "C:/Users/maria/Desktop/project_deep/car_segmentation/trainset"
+TEST_IMG_DIR = "C:/Users/maria/Desktop/project_deep/car_segmentation/testset"
 BATCH_SIZE = 8
-NUM_EPOCHS = 50
+NUM_EPOCHS = 100
 NUM_WORKERS = 2
 IMAGE_HEIGHT = 256  # 1280 originally
 IMAGE_WIDTH = 256  # 1918 originally
 PIN_MEMORY = True
-LOAD_MODEL = True
+LOAD_MODEL = False
 
 
 
@@ -59,7 +61,7 @@ def train_fn(loader, model, optimizer, loss_fn, scaler):
 
     for batch_idx, all_data in enumerate(loop):
         data = all_data[:, 0, :, :]
-        targets = all_data[:, 2:, :, :]
+        targets = all_data[:, 1:10, :, :]
         data = data.float().unsqueeze(1).to(device=DEVICE)
         targets = targets.float().to(device=DEVICE)
     #    targets = targets.float().unsqueeze(1).to(device=DEVICE)
@@ -87,9 +89,9 @@ def main():
         Normalize(),
         Rescale(256),
         randomHorizontalFlip(),
-        randomShiftScaleRotate(),
-        randomHueSaturationValue(),
-        randomZoom(),
+            randomShiftScaleRotate(),
+    #   randomHueSaturationValue(),
+   #     randomZoom(),
         Grayscale(),
         ToTensor(),
     ])
@@ -102,11 +104,12 @@ def main():
     ])
 
     model = UNET(in_channels=1, out_channels=9).to(DEVICE)
-    loss_fn = nn.CrossEntropyLoss()
+ #   loss_fn = nn.CrossEntropyLoss() #softDice   weighted average of both
+    loss_fn = DiceBCELoss.DiceBCELoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     train_loader, test_loader = get_loaders(
-        TRAIN_IMG_DIR,
+        TEST_IMG_DIR,
         BATCH_SIZE,
         train_transform,
         test_transforms,
