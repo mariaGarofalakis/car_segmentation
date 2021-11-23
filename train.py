@@ -20,10 +20,12 @@ from utilis import (
 # Hyperparameters etc.
 LEARNING_RATE = 1e-4
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
 TRAIN_IMG_DIR = "C:/Users/maria/Desktop/project_deep/car_segmentation/trainset"
 TEST_IMG_DIR = "C:/Users/maria/Desktop/project_deep/car_segmentation/testset"
 BATCH_SIZE = 8
 NUM_EPOCHS = 100
+
 NUM_WORKERS = 2
 IMAGE_HEIGHT = 256  # 1280 originally
 IMAGE_WIDTH = 256  # 1918 originally
@@ -140,14 +142,18 @@ def main():
         }
         save_checkpoint(checkpoint)
 
+        train_tmp = 0.0
+        train_tmp_dc = 0.0
+        test_tmp = 0.0
+        test_tmp_dc = 0.0
+
         # check accuracy
 
-
-        train_tmp, train_tmp_dc, test_tmp, test_tmp_dc = check_accuracy(train_loader, test_loader, model, device=DEVICE)
-        train_accuracy.append(train_tmp.cpu() * 100)
-        train_dice.append(train_tmp_dc.cpu())
-        test_accuracy.append(test_tmp.cpu() * 100)
-        test_dice.append(test_tmp_dc.cpu())
+        train_tmp,train_tmp_dc,test_tmp,test_tmp_dc = check_accuracy( train_loader ,test_loader, model, device=DEVICE)
+        train_accuracy.append(train_tmp*100)
+        train_dice.append(train_tmp_dc)
+        test_accuracy.append(test_tmp*100)
+        test_dice.append(test_tmp_dc)
         train_iter.append(epoch)
 
 
