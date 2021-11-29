@@ -143,6 +143,30 @@ def check_accuracy_background(loader, model, device="cuda"):
     print(f"Dice score: {dice_score/len(loader)}")
     model.train()
 
+def save_imgs_of_car_removing_background(loader, model2, folder="saved_no_back_images/", device=DEVICE):
+    model2.eval()
+    for idx, all_data in enumerate(loader):
+        new_data = remove_background(all_data, model2)
+        x = all_data[:, 0, :, :]
+        y = all_data[:, 1:10, :, :]
+        x = x.float().unsqueeze(1).to(device=DEVICE)
+        #   y = y.float().unsqueeze(1)
+
+        with torch.no_grad():
+            preds = torch.softmax(model2(x), 1)
+            preds = preds.cpu()
+            preds = torch.zeros(preds.shape).scatter(1, preds.argmax(1).unsqueeze(1), 1.0)
+            # preds = (preds = max_preds).float()
+            preds = preds.cuda()
+
+        for itr in range(9):
+            torchvision.utils.save_image(
+                preds[:, itr, :, :].unsqueeze(1), f"{folder}/pred_{idx}_itr_{itr}.png"
+            )
+            torchvision.utils.save_image(y[:, itr, :, :].unsqueeze(1), f"{folder}{idx}_itr_{itr}.png")
+
+    model2.train()
+
 
 def save_predictions_as_imgs(
     loader, model,model2, folder="saved_images/", device="cuda"
