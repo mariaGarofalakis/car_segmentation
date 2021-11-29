@@ -8,6 +8,27 @@ def save_checkpoint(state, filename="my_checkpoint.pth.tar"):
     print("=> Saving checkpoint")
     torch.save(state, filename)
 
+def save_checkpoint_background(state, filename="remove_background_pretrained_model.pth.tar"):
+    print("=> Saving checkpoint")
+    torch.save(state, filename)
+
+
+def remove_background(data,model2):
+
+    model2.eval()
+    the_car = data[:, 0, :, :].float().unsqueeze(1)
+
+    predictions_remove_background = model2(the_car)
+    predictions_remove_background = torch.sigmoid(predictions_remove_background)
+    predictions_remove_background = (predictions_remove_background > 0.5).float()
+    for itr in range(11):
+        if itr != 1:
+            new_data = (data[:, itr, :, :] > 0.5).float().unsqueeze(1)
+            filtered = torch.squeeze(new_data * predictions_remove_background)
+            data[:, itr, :, :] = filtered
+
+    return data
+
 def load_checkpoint(checkpoint, model):
     print("=> Loading checkpoint")
     model.load_state_dict(checkpoint["state_dict"])
@@ -93,11 +114,42 @@ def check_accuracy( train_loader ,test_loader, model, device="cuda"):
     model.train()
     return  num_correct_train/num_pixels_train, dice_score_train/len(train_loader), num_correct_test / num_pixels_test, dice_score_test / len(test_loader)
 
+
+def check_accuracy_background(loader, model, device="cuda"):
+    num_correct = 0
+    num_pixels = 0
+    dice_score = 0
+    model.eval()
+
+    with torch.no_grad():
+        for all_data in loader:
+            x = all_data[:, 0, :, :]
+            y = all_data[:, 1, :, :]
+            x = x.float().unsqueeze(1).to(device=DEVICE)
+            y = y.float().unsqueeze(1).to(device=DEVICE)
+
+
+            preds = torch.sigmoid(model(x))
+            preds = (preds > 0.5).float()
+            num_correct += (preds == y).sum()
+            num_pixels += torch.numel(preds)
+            dice_score += (2 * (preds * y).sum()) / (
+                (preds + y).sum() + 1e-8
+            )
+
+    print(
+        f"Got {num_correct}/{num_pixels} with acc {num_correct/num_pixels*100:.2f}"
+    )
+    print(f"Dice score: {dice_score/len(loader)}")
+    model.train()
+
+
 def save_predictions_as_imgs(
-    loader, model, folder="saved_images/", device="cuda"
+    loader, model,model2, folder="saved_images/", device="cuda"
 ):
     model.eval()
     for idx, all_data in enumerate(loader):
+        new_data = remove_background(all_data, model2)
         x = all_data[:, 0, :, :]
         y = all_data[:, 1:10, :, :]
         x = x.float().unsqueeze(1).to(device=DEVICE)
@@ -118,3 +170,5 @@ def save_predictions_as_imgs(
             torchvision.utils.save_image(y[:, itr, :, :].unsqueeze(1), f"{folder}{idx}_itr_{itr}.png")
 
     model.train()
+
+

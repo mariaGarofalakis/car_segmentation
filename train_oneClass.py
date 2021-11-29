@@ -4,16 +4,16 @@ import torchvision
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from model import UNET
-import ComboLoss
+import torch.nn as nn
+import IoULoss
 import torch.optim as optim
 from transforms import Rescale, Normalize, ToTensor, randomHueSaturationValue, randomHorizontalFlip, randomZoom, Grayscale, randomShiftScaleRotate
 from utilis import (
     load_checkpoint,
-    save_checkpoint,
+    save_checkpoint_background,
     get_loaders,
-    check_accuracy,
-    save_predictions_as_imgs,
-    remove_background,
+    check_accuracy_background,
+    save_imgs_of_car_removing_background,
 )
 
 
@@ -32,41 +32,17 @@ LOAD_MODEL = True
 
 
 
-def plot_images(data):
 
 
-    data = data.numpy().astype(np.uint8)
-    image = data[:1,:,:]
- #   image = np.expand_dims(image, axis=0)
-    masks = data[1:]
-
-
-
-    img = np.transpose(image, (1, 2, 0))
-
-    masks = np.transpose(masks, (1, 2, 0))
-
-    fig, ax = plt.subplots(1, 11, figsize=(10, 3))
-    ax[0].imshow(img)
-
-    for it in range(1, len(ax)):
-        ax[it].imshow(masks[:,:,it - 1])
-    plt.show()
-
-
-
-
-def train_fn(loader, model, optimizer, loss_fn, scaler,model2):
+def train_fn(loader, model, optimizer, loss_fn, scaler):
     loop = tqdm(loader)
 
     for batch_idx, all_data in enumerate(loop):
-
-        new_data = remove_background(all_data, model2)
-        data = new_data[:, 0, :, :]
-        targets = new_data[:, 1:10, :, :]
+        data = all_data[:, 0, :, :]
+        targets = all_data[:, 10, :, :]
         data = data.float().unsqueeze(1).to(device=DEVICE)
-        targets = targets.float().to(device=DEVICE)
-    #    targets = targets.float().unsqueeze(1).to(device=DEVICE)
+    #    targets = targets.float().to(device=DEVICE)
+        targets = targets.float().unsqueeze(1).to(device=DEVICE)
 
         # forward
         with torch.cuda.amp.autocast():
@@ -102,12 +78,9 @@ def main():
         ToTensor(),
     ])
 
-    model2 = UNET(in_channels=1, out_channels=1)
-    load_checkpoint(torch.load("remove_background_pretrained_model.pth.tar"), model2)
-
-    model = UNET(in_channels=1, out_channels=9).to(DEVICE)
+    model = UNET(in_channels=1, out_channels=1).to(DEVICE)
  #   loss_fn = nn.CrossEntropyLoss() #softDice   weighted average of both
-    loss_fn = ComboLoss.ComboLoss()
+    loss_fn =IoULoss.IoULoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     train_loader, test_loader = get_loaders(
@@ -120,54 +93,31 @@ def main():
     )
 
     if LOAD_MODEL:
-        load_checkpoint(torch.load("my_checkpoint.pth.tar"), model)
+        load_checkpoint(torch.load("remove_background_pretrained_model.pth.tar"), model)
 
 
  #   check_accuracy(test_loader, model, device=DEVICE)
     scaler = torch.cuda.amp.GradScaler()
 
-    test_accuracy = []
-    test_dice = []
-    train_accuracy = []
-    train_dice = []
-    train_iter = []
+
 
     for epoch in range(NUM_EPOCHS):
-        train_fn(train_loader, model, optimizer, loss_fn, scaler,model2)
+        train_fn(train_loader, model, optimizer, loss_fn, scaler)
 
         # save model
         checkpoint = {
             "state_dict": model.state_dict(),
-            "optimizer":optimizer.state_dict(),
+            "optimizer": optimizer.state_dict(),
         }
-        save_checkpoint(checkpoint)
+        save_checkpoint_background(checkpoint)
 
         # check accuracy
-
-
-        train_tmp, train_tmp_dc, test_tmp, test_tmp_dc = check_accuracy(train_loader, test_loader, model, device=DEVICE)
-        train_accuracy.append(train_tmp.cpu() * 100)
-        train_dice.append(train_tmp_dc.cpu())
-        test_accuracy.append(test_tmp.cpu() * 100)
-        test_dice.append(test_tmp_dc.cpu())
-        train_iter.append(epoch)
-
+        check_accuracy_background(test_loader, model, device=DEVICE)
 
         # print some examples to a folder
-        save_predictions_as_imgs(
-            test_loader, model,model2, folder="saved_images/", device=DEVICE
+        save_imgs_of_car_removing_background(
+            test_loader, model, folder="saved_no_back_images/", device=DEVICE
         )
-
-        fig = plt.figure(figsize=(12, 4))
-        plt.subplot(1, 2, 1)
-        plt.plot(train_iter, train_accuracy, label='train_loss')
-        plt.plot(train_iter, test_accuracy, label='valid_loss')
-        plt.legend()
-        plt.subplot(1, 2, 2)
-        plt.plot(train_iter, train_dice, label='train_accs')
-        plt.plot(train_iter, test_dice, label='valid_accs')
-        plt.legend()
-        plt.savefig('metrics.png')
 
 
 if __name__ == '__main__':
