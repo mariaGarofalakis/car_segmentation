@@ -7,11 +7,8 @@ class create_dataset(Dataset):
     def __init__(self, image_dir, train, transform=None):
 
         self.image_dir = image_dir
-        all_images = os.listdir(image_dir)
-        #if train:
-        #    self.original_images = [x for x in all_images if 'DOOR' and 'OPEL' in x]
-        #else:
-        self.original_images = [x for x in all_images if '_a.' in x]
+        self.original_images = os.listdir(image_dir)
+
         self.transform = transform
 
 
