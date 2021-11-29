@@ -53,7 +53,7 @@ def check_accuracy( train_loader ,test_loader, model, device="cuda"):
             y = y.float().to(device=DEVICE)
 
             preds = torch.softmax(model(x), 1)
-            preds = torch.zeros(preds.shape).scatter(1, preds.argmax(1).unsqueeze(1).cpu(), 1.0).to(device=DEVICE)
+            preds = (torch.zeros(preds.shape).scatter(1, preds.argmax(1).unsqueeze(1).cpu(), 1.0)).to(device=DEVICE)
 
             TP_test += (preds[:, 1:9, :, :] * y[:, 1:9, :, :]).sum()
             FN_test += (y[:, 1:9, :, :] * (1 - preds[:, 1:9, :, :])).sum()
@@ -86,7 +86,7 @@ def check_accuracy( train_loader ,test_loader, model, device="cuda"):
             y = y.float().to(device=DEVICE)
 
             preds = torch.softmax(model(x), 1)
-            preds = torch.zeros(preds.shape).scatter(1, preds.argmax(1).unsqueeze(1).cpu(), 1.0).to(devive=DEVICE)
+            preds = (torch.zeros(preds.shape).scatter(1, preds.argmax(1).unsqueeze(1).cpu(), 1.0)).to(device=DEVICE)
 
             TP_train += (preds[:,1:9,:,:] * y[:,1:9,:,:]).sum()
             FN_train += (y[:,1:9,:,:] * (1 - preds[:,1:9,:,:])).sum()
