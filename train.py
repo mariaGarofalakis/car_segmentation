@@ -114,6 +114,7 @@ def main():
 
 
     train_loader, test_loader = get_loaders(
+        TRAIN_IMG_DIR,
         TEST_IMG_DIR,
         BATCH_SIZE,
         train_transform,

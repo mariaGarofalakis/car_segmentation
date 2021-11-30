@@ -34,17 +34,17 @@ def load_checkpoint(checkpoint, model):
     print("=> Loading checkpoint")
     model.load_state_dict(checkpoint["state_dict"])
 
-def get_loaders(train_dir, batch_size, train_transform, test_transform, num_workers=4, pin_memory=True):
-    train_ds_original = create_dataset(image_dir=train_dir, train=True, transform = test_transform)
+def get_loaders(train_dir,test_dir, batch_size, train_transform, test_transform, num_workers=4, pin_memory=True):
+ #   train_ds_original = create_dataset(image_dir=train_dir, train=True, transform = test_transform)
     train_ds = create_dataset(image_dir=train_dir, train=True, transform = train_transform)
 
-    con_Dataset = torch.utils.data.ConcatDataset([train_ds_original, train_ds])
-    train_loader = DataLoader(con_Dataset, batch_size=batch_size,num_workers=num_workers,
+ #   con_Dataset = torch.utils.data.ConcatDataset([train_ds_original, train_ds])
+    train_loader = DataLoader(train_ds, batch_size=batch_size,num_workers=num_workers,
         pin_memory=pin_memory,
         shuffle=True)
 
     test_ds = create_dataset(
-        image_dir=train_dir, train=False, transform = test_transform
+        image_dir=test_dir, train=False, transform=test_transform
     )
 
     test_loader = DataLoader(
@@ -160,28 +160,23 @@ def check_accuracy_background(loader, model, device="cuda"):
     )
     print(f"Dice score: {dice_score/len(loader)}")
     model.train()
+    return  num_correct/num_pixels*100
 
 def save_imgs_of_car_removing_background(loader, model2, folder="saved_no_back_images/", device=DEVICE):
     model2.eval()
-    for idx, all_data in enumerate(loader):
-        new_data = remove_background(all_data, model2)
+    for idx,all_data in enumerate(loader):
         x = all_data[:, 0, :, :]
-        y = all_data[:, 1:10, :, :]
+        y = all_data[:, 10, :, :]
         x = x.float().unsqueeze(1).to(device=DEVICE)
-        #   y = y.float().unsqueeze(1)
+
 
         with torch.no_grad():
-            preds = torch.softmax(model2(x), 1)
-            preds = preds.cpu()
-            preds = torch.zeros(preds.shape).scatter(1, preds.argmax(1).unsqueeze(1), 1.0)
-            # preds = (preds = max_preds).float()
-            preds = preds.cuda()
-
-        for itr in range(9):
-            torchvision.utils.save_image(
-                preds[:, itr, :, :].unsqueeze(1), f"{folder}/pred_{idx}_itr_{itr}.png"
-            )
-            torchvision.utils.save_image(y[:, itr, :, :].unsqueeze(1), f"{folder}{idx}_itr_{itr}.png")
+            preds = torch.sigmoid(model2(x))
+            preds = (preds > 0.5).float()
+        torchvision.utils.save_image(
+            preds, f"{folder}/pred_{idx}.png"
+        )
+        torchvision.utils.save_image(y.unsqueeze(1), f"{folder}{idx}.png")
 
     model2.train()
 
@@ -192,8 +187,8 @@ def save_predictions_as_imgs(
     model.eval()
     for idx, all_data in enumerate(loader):
         new_data = remove_background(all_data, model2)
-        x = all_data[:, 0, :, :]
-        y = all_data[:, 1:10, :, :]
+        x = new_data[:, 0, :, :]
+        y = new_data[:, 1:10, :, :]
         x = x.float().unsqueeze(1).to(device=DEVICE)
      #   y = y.float().unsqueeze(1)
 

@@ -1,11 +1,8 @@
-import numpy as np
 import torch
 import torchvision
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 from model import UNET
 import torch.nn as nn
-import IoULoss
 import torch.optim as optim
 from transforms import Rescale, Normalize, ToTensor, randomHueSaturationValue, randomHorizontalFlip, randomZoom, Grayscale, randomShiftScaleRotate
 from utilis import (
@@ -23,13 +20,12 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 TRAIN_IMG_DIR = "C:/Users/maria/Desktop/project_deep/car_segmentation/trainset"
 TEST_IMG_DIR = "C:/Users/maria/Desktop/project_deep/car_segmentation/testset"
 BATCH_SIZE = 8
-NUM_EPOCHS = 100
+NUM_EPOCHS = 200
 NUM_WORKERS = 2
 IMAGE_HEIGHT = 256  # 1280 originally
 IMAGE_WIDTH = 256  # 1918 originally
 PIN_MEMORY = True
-LOAD_MODEL = True
-
+LOAD_MODEL = False
 
 
 
@@ -41,7 +37,6 @@ def train_fn(loader, model, optimizer, loss_fn, scaler):
         data = all_data[:, 0, :, :]
         targets = all_data[:, 10, :, :]
         data = data.float().unsqueeze(1).to(device=DEVICE)
-    #    targets = targets.float().to(device=DEVICE)
         targets = targets.float().unsqueeze(1).to(device=DEVICE)
 
         # forward
@@ -64,8 +59,8 @@ def main():
         Normalize(),
         Rescale(256),
         randomHorizontalFlip(),
-         randomShiftScaleRotate(),
-       randomHueSaturationValue(),
+        randomShiftScaleRotate(),
+        randomHueSaturationValue(),
         randomZoom(),
         Grayscale(),
         ToTensor(),
@@ -79,11 +74,12 @@ def main():
     ])
 
     model = UNET(in_channels=1, out_channels=1).to(DEVICE)
- #   loss_fn = nn.CrossEntropyLoss() #softDice   weighted average of both
-    loss_fn =IoULoss.IoULoss()
+
+    loss_fn =nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     train_loader, test_loader = get_loaders(
+        TRAIN_IMG_DIR,
         TEST_IMG_DIR,
         BATCH_SIZE,
         train_transform,
