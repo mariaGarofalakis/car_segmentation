@@ -139,8 +139,8 @@ def check_accuracy( train_loader ,test_loader, model, device="cuda"):
 
 
 def check_accuracy_background(train_loader, test_loader, model, device="cuda"):
-    TP_test = 0
-    FN_test = 0
+    TP_test=0
+    FN_test=0
     TP_train = 0
     FN_train = 0
     dice_score_train = 0
@@ -150,16 +150,49 @@ def check_accuracy_background(train_loader, test_loader, model, device="cuda"):
     cross_loss_test = 0
     total_loss_test = 0
     Tversky_test = 0
-    Tversky_train = 0
+    Tversky_train =0
 
     model.eval()
 
-    closs =  nn.BCEWithLogitsLoss(reduction='mean')
+    closs = nn.BCEWithLogitsLoss(reduction='mean')
     total = FocalTverskyLoss()
 
+    with torch.no_grad():
+        for all_data in test_loader:
+            x = all_data[:, 0, :, :]
+            y = all_data[:, 10, :, :]
+            x = x.float().unsqueeze(1).to(device=DEVICE)
+            y = y.float().unsqueeze(1).to(device=DEVICE)
+
+            preds = model(x)
+            cross_loss_test += closs(preds, y)
+            total_loss_test += total(preds,y)
+
+            preds = torch.sigmoid(preds)
+            preds = (preds > 0.5).float()
+
+            TP_test += (preds * y).sum()
+            FN_test += (y * (1 - preds)).sum()
+            dice_score_test += (2 * (preds * y).sum()) / (
+                (preds + y).sum() + 1e-8
+            )
+
+
+            # flatten label and prediction tensors
+            inputs_f = preds.view(-1)
+            targets_f = y.view(-1)
+            inputs = preds.reshape(-1)
+            targets = y.reshape(-1)
+            TP = (inputs * targets).sum()
+            FP = ((1 - targets_f) * inputs_f).sum()
+            FN = (targets_f * (1 - inputs_f)).sum()
+            Tversky_test += ( TP + 1e-4) / (TP + 0.3*FP + 0.7*FN + 1e-4)
+
+    print(
+        f"Testing set:....Recall: {TP_test/(TP_test+FN_test)*100:.2f} ,...Dice score: {1-dice_score_test/len(test_loader)} ,...Tversky loss: {0.6*(1-Tversky_test/len(test_loader))},...Cross_entropy: {0.4*(1-cross_loss_test/len(test_loader))}"
+    )
 
     with torch.no_grad():
-
         for all_data in train_loader:
             x = all_data[:, 0, :, :]
             y = all_data[:, 10, :, :]
@@ -170,13 +203,13 @@ def check_accuracy_background(train_loader, test_loader, model, device="cuda"):
             cross_loss_train += closs(preds, y)
             total_loss_train += total(preds, y)
 
-            preds = F.sigmoid(preds)
+            preds = torch.sigmoid(preds)
             preds = (preds > 0.5).float()
 
             TP_train += (preds * y).sum()
             FN_train += (y * (1 - preds)).sum()
             dice_score_train += (2 * (preds * y).sum()) / (
-                    (preds + y).sum() + 1e-8)
+                      (preds + y).sum() + 1e-8 )
 
             cross_loss = closs(preds, y)
             # flatten label and prediction tensors
@@ -187,56 +220,16 @@ def check_accuracy_background(train_loader, test_loader, model, device="cuda"):
             TP = (inputs * targets).sum()
             FP = ((1 - targets_f) * inputs_f).sum()
             FN = (targets_f * (1 - inputs_f)).sum()
-            Tversky_train += (TP + 1e-4) / (TP + 0.3 * FP + 0.7 * FN + 1e-4)
+            Tversky_train += ( TP + 1e-4) / (TP + 0.3*FP + 0.7*FN + 1e-4)
+
 
     print(
-        f"Training set:...Recall: {TP_train / (TP_train + FN_train) * 100:.2f} , dice score: {1 - dice_score_train / len(train_loader)},...Tversky loss: {0.6 * (1 - Tversky_test / len(train_loader))},...Cross_entropy: {0.4 * (1 - cross_loss_test / len(train_loader))}"
+        f"Training set:...Recall: {TP_train/(TP_train+FN_train)*100:.2f} , dice score: {1-dice_score_train/len(train_loader)},...Tversky loss: {0.6*(1-Tversky_test/len(train_loader))},...Cross_entropy: {0.4*(1-cross_loss_test/len(train_loader))}"
     )
-
-    with torch.no_grad():
-
-        for all_data in test_loader:
-            x = all_data[:, 0, :, :]
-            y = all_data[:, 10, :, :]
-            x = x.float().unsqueeze(1).to(device=DEVICE)
-            y = y.float().unsqueeze(1).to(device=DEVICE)
-
-            preds = model(x)
-            cross_loss_test += closs(preds, y)
-            total_loss_test += total(preds, y)
-
-            preds = F.sigmoid(preds)
-            preds = (preds > 0.5).float()
-
-            TP_test += (preds * y).sum()
-            FN_test += (y * (1 - preds)).sum()
-            dice_score_test += (2 * (preds * y).sum()) / (
-                    (preds + y).sum() + 1e-8
-            )
-
-            # flatten label and prediction tensors
-            inputs_f = preds.view(-1)
-            targets_f = y.view(-1)
-            inputs = preds.reshape(-1)
-            targets = y.reshape(-1)
-            TP = (inputs * targets).sum()
-            FP = ((1 - targets_f) * inputs_f).sum()
-            FN = (targets_f * (1 - inputs_f)).sum()
-            Tversky_test += (TP + 1e-4) / (TP + 0.3 * FP + 0.7 * FN + 1e-4)
-    print(
-        f"Testing set:....Recall: {TP_test / (TP_test + FN_test) * 100:.2f} ,...Dice score: {1 - dice_score_test / len(test_loader)} ,...Tversky loss: {0.6 * (1 - Tversky_test / len(test_loader))},...Cross_entropy: {0.4 * (1 - cross_loss_test / len(test_loader))}"
-    )
-
-
-
     model.train()
 
-    return [[(TP_train / (TP_train + FN_train)).cpu() * 100, 1 - (dice_score_train / len(train_loader)).cpu(),
-             1 - (Tversky_train / len(train_loader)).cpu(), (cross_loss_train / len(train_loader)).cpu(),
-             (total_loss_train / len(train_loader)).cpu()],
-            [(TP_test / (TP_test + FN_test)).cpu() * 100, 1 - (dice_score_test / len(test_loader)).cpu(),
-             1 - (Tversky_test / len(test_loader)).cpu(), (cross_loss_test / len(test_loader)).cpu(),
-             (total_loss_test / len(test_loader)).cpu()]]
+    return [[(TP_train/(TP_train+FN_train)).cpu()*100, 1 - (dice_score_train/len(train_loader)).cpu(),1-(Tversky_train/len(train_loader)).cpu(), (cross_loss_train/len(train_loader)).cpu() , (total_loss_train/len(train_loader)).cpu()] ,
+      [(TP_test/(TP_test+FN_test)).cpu()*100, 1 - (dice_score_test/len(test_loader)).cpu(), 1-(Tversky_test/len(test_loader)).cpu(), (cross_loss_test/len(test_loader)).cpu(), (total_loss_test/len(test_loader)).cpu()]]
 
 
 def save_imgs_of_car_removing_background(loader, model2, folder="saved_no_back_images/", device=DEVICE):

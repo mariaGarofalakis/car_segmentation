@@ -15,7 +15,7 @@ class FocalTverskyLoss(nn.Module):
 
         self.BCE = sigma*loss_fn(inputs, targets, )
 
-        inputs = F.sigmoid(inputs)
+        inputs = torch.sigmoid(inputs)
         inputs = (inputs > 0.5).float()
         # flatten label and prediction tensors
         inputs = inputs.view(-1)
