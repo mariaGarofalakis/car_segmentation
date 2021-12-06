@@ -18,11 +18,11 @@ from utilis import (
 
 # Hyperparameters etc.
 #LEARNING_RATE = 0.009030518087422224
-LEARNING_RATE = 7.70947624598429e-05
+LEARNING_RATE = 1e-4
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 TRAIN_IMG_DIR = "C:/Users/maria/Desktop/project_deep/car_segmentation/trainset"
 TEST_IMG_DIR = "C:/Users/maria/Desktop/project_deep/car_segmentation/testset"
-BATCH_SIZE = 4
+BATCH_SIZE = 6
 NUM_EPOCHS = 500
 NUM_WORKERS = 2
 IMAGE_HEIGHT = 256  # 1280 originally

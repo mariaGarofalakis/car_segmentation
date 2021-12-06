@@ -5,7 +5,9 @@ from dataset import create_dataset
 from torch.utils.data import DataLoader
 import csv
 from os.path import exists
+from FocalTrak import FocalTverskyLoss
 import matplotlib.pyplot as plt
+import torch.nn.functional as F
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 def save_checkpoint(state, filename="my_checkpoint.pth.tar"):
@@ -137,90 +139,104 @@ def check_accuracy( train_loader ,test_loader, model, device="cuda"):
 
 
 def check_accuracy_background(train_loader, test_loader, model, device="cuda"):
-    train_num_correct = 0
-    train_num_pixels = 0
-    train_dice_score = 0
-
-    test_num_correct = 0
-    test_num_pixels = 0
-    test_dice_score = 0
-
-    alpha = 0.7
-    beta = 0.3
-    gamma = 1
-    smooth = 1
+    TP_test = 0
+    FN_test = 0
+    TP_train = 0
+    FN_train = 0
+    dice_score_train = 0
+    dice_score_test = 0
+    cross_loss_train = 0
+    total_loss_train = 0
+    cross_loss_test = 0
+    total_loss_test = 0
+    Tversky_test = 0
+    Tversky_train = 0
 
     model.eval()
 
+    closs =  nn.BCEWithLogitsLoss(reduction='mean')
+    total = FocalTverskyLoss()
+
+
     with torch.no_grad():
-        TP = 0
-        FP = 0
-        FN = 0
+
         for all_data in train_loader:
             x = all_data[:, 0, :, :]
             y = all_data[:, 10, :, :]
             x = x.float().unsqueeze(1).to(device=DEVICE)
             y = y.float().unsqueeze(1).to(device=DEVICE)
 
-            preds = torch.sigmoid(model(x))
+            preds = model(x)
+            cross_loss_train += closs(preds, y)
+            total_loss_train += total(preds, y)
+
+            preds = F.sigmoid(preds)
             preds = (preds > 0.5).float()
 
-            train_num_correct += (preds == y).sum()
-            train_num_pixels += torch.numel(preds)
-            train_dice_score += (2 * (preds * y).sum()) / (
-                    (preds + y).sum() + 1e-8
-            )
+            TP_train += (preds * y).sum()
+            FN_train += (y * (1 - preds)).sum()
+            dice_score_train += (2 * (preds * y).sum()) / (
+                    (preds + y).sum() + 1e-8)
 
-            # True Positives, False Positives & False Negatives
+            cross_loss = closs(preds, y)
+            # flatten label and prediction tensors
+            inputs_f = preds.view(-1)
+            targets_f = y.view(-1)
+            inputs = preds.reshape(-1)
+            targets = y.reshape(-1)
+            TP = (inputs * targets).sum()
+            FP = ((1 - targets_f) * inputs_f).sum()
+            FN = (targets_f * (1 - inputs_f)).sum()
+            Tversky_train += (TP + 1e-4) / (TP + 0.3 * FP + 0.7 * FN + 1e-4)
 
-            TP += (preds * y).sum()
-            FP += ((1 - y) * preds).sum()
-            FN += (y * (1 - preds)).sum()
-
-        Tversky = (TP + 1e-4) / (TP + alpha * FP + beta * FN + 1e-4)
-        FocalTversky_train = (1 - Tversky)
+    print(
+        f"Training set:...Recall: {TP_train / (TP_train + FN_train) * 100:.2f} , dice score: {1 - dice_score_train / len(train_loader)},...Tversky loss: {0.6 * (1 - Tversky_test / len(train_loader))},...Cross_entropy: {0.4 * (1 - cross_loss_test / len(train_loader))}"
+    )
 
     with torch.no_grad():
-        TP = 0
-        FP = 0
-        FN = 0
+
         for all_data in test_loader:
             x = all_data[:, 0, :, :]
             y = all_data[:, 10, :, :]
             x = x.float().unsqueeze(1).to(device=DEVICE)
             y = y.float().unsqueeze(1).to(device=DEVICE)
 
+            preds = model(x)
+            cross_loss_test += closs(preds, y)
+            total_loss_test += total(preds, y)
 
-            preds = torch.sigmoid(model(x))
+            preds = F.sigmoid(preds)
             preds = (preds > 0.5).float()
 
-            test_num_correct += (preds == y).sum()
-            test_num_pixels += torch.numel(preds)
-            test_dice_score += (2 * (preds * y).sum()) / (
+            TP_test += (preds * y).sum()
+            FN_test += (y * (1 - preds)).sum()
+            dice_score_test += (2 * (preds * y).sum()) / (
                     (preds + y).sum() + 1e-8
             )
 
-            # True Positives, False Positives & False Negatives
-
-            TP += (preds * y).sum()
-            FP += ((1 - y) * preds).sum()
-            FN += (y * (1 - preds)).sum()
-
-        Tversky = (TP + 1e-4) / (TP + alpha * FP + beta * FN + 1e-4)
-        FocalTversky_test =  (1 - Tversky)
-
+            # flatten label and prediction tensors
+            inputs_f = preds.view(-1)
+            targets_f = y.view(-1)
+            inputs = preds.reshape(-1)
+            targets = y.reshape(-1)
+            TP = (inputs * targets).sum()
+            FP = ((1 - targets_f) * inputs_f).sum()
+            FN = (targets_f * (1 - inputs_f)).sum()
+            Tversky_test += (TP + 1e-4) / (TP + 0.3 * FP + 0.7 * FN + 1e-4)
     print(
-        f"Got for the training set {train_num_correct}/{train_num_pixels} with acc {train_num_correct / train_num_pixels * 100} and Dice score {1-(train_dice_score / len(train_loader))} and FocalTversky Loss {FocalTversky_train}"
+        f"Testing set:....Recall: {TP_test / (TP_test + FN_test) * 100:.2f} ,...Dice score: {1 - dice_score_test / len(test_loader)} ,...Tversky loss: {0.6 * (1 - Tversky_test / len(test_loader))},...Cross_entropy: {0.4 * (1 - cross_loss_test / len(test_loader))}"
     )
-    print(
-        f"Got for the test set {test_num_correct}/{test_num_pixels} with acc {test_num_correct / test_num_pixels * 100} and Dice score {1-(test_dice_score / len(test_loader))} and FocalTversky Loss {FocalTversky_test}"
-    )
+
+
 
     model.train()
-    return [[(train_num_correct / train_num_pixels * 100).cpu(), 1-(train_dice_score / len(train_loader)).cpu(),
-             FocalTversky_train.cpu()],
-            [(test_num_correct / test_num_pixels * 100).cpu(), 1-(test_dice_score / len(test_loader)).cpu(),
-             FocalTversky_test.cpu()]]
+
+    return [[(TP_train / (TP_train + FN_train)).cpu() * 100, 1 - (dice_score_train / len(train_loader)).cpu(),
+             1 - (Tversky_train / len(train_loader)).cpu(), (cross_loss_train / len(train_loader)).cpu(),
+             (total_loss_train / len(train_loader)).cpu()],
+            [(TP_test / (TP_test + FN_test)).cpu() * 100, 1 - (dice_score_test / len(test_loader)).cpu(),
+             1 - (Tversky_test / len(test_loader)).cpu(), (cross_loss_test / len(test_loader)).cpu(),
+             (total_loss_test / len(test_loader)).cpu()]]
 
 
 def save_imgs_of_car_removing_background(loader, model2, folder="saved_no_back_images/", device=DEVICE):
@@ -337,7 +353,7 @@ def save_metrics_one_class(metrics, name: str):
 
     data = []
     file_exists = exists(name)
-    header = ['accuracy' , 'Dice', 'FocalTversky']
+    header = ['Recal', 'Dice', 'Tversky', 'Cross Entropy', 'Total']
     for loader in metrics:
         for i in range(len(loader)):
             if i == 0:
