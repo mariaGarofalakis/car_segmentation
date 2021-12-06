@@ -3,17 +3,18 @@ import torchvision
 from tqdm import tqdm
 from model import UNET
 import torch.nn as nn
+import pandas as pd
 import torch.optim as optim
 import optuna
 import matplotlib.pyplot as plt
 import numpy as np
+import IoULoss
 from transforms import Rescale, Normalize, ToTensor, randomHueSaturationValue, randomHorizontalFlip, randomZoom, Grayscale, randomShiftScaleRotate
 from utilis import (
     load_checkpoint,
     save_checkpoint_background,
     get_loaders,
     check_accuracy_background,
-    save_imgs_of_car_removing_background,
 )
 
 
@@ -31,7 +32,7 @@ class optuna_train_oneClass(object):
     def __init__(self):
         self.train_image_dir = "C:/Users/maria/Desktop/project_deep/car_segmentation/trainset"
         self.test_image_dir = "C:/Users/maria/Desktop/project_deep/car_segmentation/testset"
-        self.best_val_accuracy = 100
+        self.IoU = 1000
 
     def suggest_hyperparameters(self, trial):
         # Learning rate on a logarithmic scale
@@ -80,7 +81,7 @@ class optuna_train_oneClass(object):
                                                        step_size=3,
                                                        gamma=0.1)
 
-        loss_fn =nn.BCEWithLogitsLoss()
+        loss_fn =IoULoss.IoULoss()
 
 
         train_loader, test_loader = get_loaders(
@@ -100,7 +101,7 @@ class optuna_train_oneClass(object):
      #   check_accuracy(test_loader, model, device=DEVICE)
         scaler = torch.cuda.amp.GradScaler()
 
-        accuracy = []
+        IoU = []
         for epoch in range(NUM_EPOCHS):
             ############################################ train_fn ####################################################
 
@@ -135,29 +136,29 @@ class optuna_train_oneClass(object):
             save_checkpoint_background(checkpoint)
 
             # check accuracy
-            accuracy.append(check_accuracy_background(test_loader, model, device=DEVICE))
+            test_IoU =check_accuracy_background(train_loader,test_loader, model, device=DEVICE)[1][2]
+            IoU.append(test_IoU)
 
-            # print some examples to a folder
-            save_imgs_of_car_removing_background(
-                test_loader, model, folder="saved_no_back_images/", device=DEVICE
-            )
+            trial.report(test_IoU, epoch)
+            if trial.should_prune():
+                raise optuna.TrialPruned()
 
-        optuna_accuracy = sum(accuracy) / len(accuracy)
-        if (optuna_accuracy <= self.best_val_accuracy):
-            self.best_val_accuracy = optuna_accuracy
-            print(self.best_val_accuracy)
+        optuna_IoU = sum(IoU) / len(IoU)
+        if (optuna_IoU <= self.IoU):
+            self.IoU = optuna_IoU
+            print(self.IoU)
 
-        return optuna_accuracy
+        return optuna_IoU
 
 
 
 if __name__ == '__main__':
     trainObj = optuna_train_oneClass()
-    study = optuna.create_study(study_name="Final-project-optuna", direction="maximize",
+    study = optuna.create_study(study_name="Final-project-optuna", direction="minimize",
                                 pruner=optuna.pruners.MedianPruner(
                                     n_startup_trials=5, n_warmup_steps=1
                                 ))
-    study.optimize(trainObj.train, n_trials=20)
+    study.optimize(trainObj.train, n_trials=15)
 
     # Initialize the best_val_loss value
     # mean_AP_accuracy = best_val_loss = float('Inf')
@@ -181,6 +182,8 @@ if __name__ == '__main__':
     for key, value in trial.params.items():
         print("    {}: {}".format(key, value))
 
+    df = study.trials_dataframe()
+    df.to_csv(r'optuna_metrics.csv', index=False)
     fig_history = optuna.visualization.matplotlib.plot_optimization_history(study)
     plt.savefig('fig_history.png')
     fig_param_importances = optuna.visualization.matplotlib.plot_param_importances(study)

@@ -24,7 +24,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 
-NUM_EPOCHS = 200
+NUM_EPOCHS = 35
 
 NUM_WORKERS = 2
 IMAGE_HEIGHT = 256  # 1280 originally

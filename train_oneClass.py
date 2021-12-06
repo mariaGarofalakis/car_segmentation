@@ -4,6 +4,7 @@ from tqdm import tqdm
 from model import UNET
 import torch.nn as nn
 import torch.optim as optim
+from FocalTrak import FocalTverskyLoss
 from transforms import Rescale, Normalize, ToTensor, randomHueSaturationValue, randomHorizontalFlip, randomZoom, Grayscale, randomShiftScaleRotate
 from utilis import (
     load_checkpoint,
@@ -11,16 +12,18 @@ from utilis import (
     get_loaders,
     check_accuracy_background,
     save_imgs_of_car_removing_background,
+    save_metrics_one_class
 )
 
 
 # Hyperparameters etc.
-LEARNING_RATE = 1e-4
+#LEARNING_RATE = 0.009030518087422224
+LEARNING_RATE = 7.70947624598429e-05
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 TRAIN_IMG_DIR = "C:/Users/maria/Desktop/project_deep/car_segmentation/trainset"
 TEST_IMG_DIR = "C:/Users/maria/Desktop/project_deep/car_segmentation/testset"
-BATCH_SIZE = 8
-NUM_EPOCHS = 200
+BATCH_SIZE = 4
+NUM_EPOCHS = 500
 NUM_WORKERS = 2
 IMAGE_HEIGHT = 256  # 1280 originally
 IMAGE_WIDTH = 256  # 1918 originally
@@ -75,8 +78,12 @@ def main():
 
     model = UNET(in_channels=1, out_channels=1).to(DEVICE)
 
-    loss_fn =nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    loss_fn =FocalTverskyLoss()
+
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE , weight_decay=1e-5 , amsgrad=True )
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
+                                                step_size=3,
+                                                 gamma=0.1)
 
     train_loader, test_loader = get_loaders(
         TRAIN_IMG_DIR,
@@ -99,6 +106,7 @@ def main():
 
     for epoch in range(NUM_EPOCHS):
         train_fn(train_loader, model, optimizer, loss_fn, scaler)
+        lr_scheduler.step()
 
         # save model
         checkpoint = {
@@ -108,7 +116,11 @@ def main():
         save_checkpoint_background(checkpoint)
 
         # check accuracy
-        check_accuracy_background(test_loader, model, device=DEVICE)
+        metrics=check_accuracy_background(train_loader,test_loader, model, device=DEVICE)
+
+        save_metrics_one_class(metrics, 'C:/Users/maria/Desktop/project_deep/car_segmentation/metrics/metrics.csv')
+
+
 
         # print some examples to a folder
         save_imgs_of_car_removing_background(

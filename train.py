@@ -4,8 +4,6 @@ import torchvision
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from model import UNET
-import ComboLoss
-import torch.nn as nn
 import TotalLoss
 import torch.optim as optim
 from transforms import Rescale, Normalize, ToTensor, randomHueSaturationValue, randomHorizontalFlip, randomZoom, Grayscale, randomShiftScaleRotate
@@ -16,6 +14,7 @@ from utilis import (
     check_accuracy,
     save_predictions_as_imgs,
     remove_background,
+    save_metrics
 )
 
 
@@ -32,7 +31,7 @@ NUM_WORKERS = 2
 IMAGE_HEIGHT = 256  # 1280 originally
 IMAGE_WIDTH = 256  # 1918 originally
 PIN_MEMORY = True
-LOAD_MODEL = False
+LOAD_MODEL = True
 
 
 
@@ -131,13 +130,6 @@ def main():
     scaler = torch.cuda.amp.GradScaler()
 
     test_accuracy = []
-    test_dice = []
-    train_accuracy = []
-    train_dice = []
-    train_iter = []
-
-    #lambda1 = lambda epoch: 0.99 ** epoch
-    #scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
 
     for epoch in range(NUM_EPOCHS):
         train_fn(train_loader, model, optimizer, loss_fn, scaler,model2)
@@ -148,34 +140,20 @@ def main():
             "optimizer":optimizer.state_dict(),
         }
         save_checkpoint(checkpoint)
-        #scheduler.step()
 
-        # check accuracy
-        tmp_metrics = []
         tmp_metrics = check_accuracy( train_loader ,test_loader, model, device=DEVICE)
-        train_accuracy.append(tmp_metrics[0]*100)
-        train_dice.append(tmp_metrics[1])
+
         test_accuracy.append(tmp_metrics[2]*100)
-        test_dice.append(tmp_metrics[3])
-        train_iter.append(epoch)
+
+        save_metrics(tmp_metrics, 'C:/Users/maria/Desktop/project_deep/car_segmentation/metrics/metrics.csv')
 
         # print some examples to a folder
 
-        save_predictions_as_imgs(
-            test_loader, model,model2, folder="saved_images/", device=DEVICE
-        )
+ #       save_predictions_as_imgs(
+ #           test_loader, model,model2, folder="saved_images/", device=DEVICE
+ #       )
 
 
-        fig = plt.figure(figsize=(12, 4))
-        plt.subplot(1, 2, 1)
-        plt.plot(train_iter, train_accuracy, label='train_loss')
-        plt.plot(train_iter, test_accuracy, label='valid_loss')
-        plt.legend()
-        plt.subplot(1, 2, 2)
-        plt.plot(train_iter, train_dice, label='train_accs')
-        plt.plot(train_iter, test_dice, label='valid_accs')
-        plt.legend()
-        plt.savefig('metrics.png')
 
 
 if __name__ == '__main__':

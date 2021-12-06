@@ -3,6 +3,9 @@ import torch.nn as nn
 import torchvision
 from dataset import create_dataset
 from torch.utils.data import DataLoader
+import csv
+from os.path import exists
+import matplotlib.pyplot as plt
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 def save_checkpoint(state, filename="my_checkpoint.pth.tar"):
@@ -133,34 +136,92 @@ def check_accuracy( train_loader ,test_loader, model, device="cuda"):
     return   [ (TP_train/(TP_train+FN_train)).cpu(), (dice_score_train/len(train_loader)).cpu(), (TP_test/(TP_test+FN_test)).cpu(), (dice_score_test / len(test_loader)).cpu() ]
 
 
-def check_accuracy_background(loader, model, device="cuda"):
-    num_correct = 0
-    num_pixels = 0
-    dice_score = 0
+def check_accuracy_background(train_loader, test_loader, model, device="cuda"):
+    train_num_correct = 0
+    train_num_pixels = 0
+    train_dice_score = 0
+
+    test_num_correct = 0
+    test_num_pixels = 0
+    test_dice_score = 0
+
+    alpha = 0.7
+    beta = 0.3
+    gamma = 1
+    smooth = 1
+
     model.eval()
 
     with torch.no_grad():
-        for all_data in loader:
+        TP = 0
+        FP = 0
+        FN = 0
+        for all_data in train_loader:
             x = all_data[:, 0, :, :]
-            y = all_data[:, 1, :, :]
+            y = all_data[:, 10, :, :]
+            x = x.float().unsqueeze(1).to(device=DEVICE)
+            y = y.float().unsqueeze(1).to(device=DEVICE)
+
+            preds = torch.sigmoid(model(x))
+            preds = (preds > 0.5).float()
+
+            train_num_correct += (preds == y).sum()
+            train_num_pixels += torch.numel(preds)
+            train_dice_score += (2 * (preds * y).sum()) / (
+                    (preds + y).sum() + 1e-8
+            )
+
+            # True Positives, False Positives & False Negatives
+
+            TP += (preds * y).sum()
+            FP += ((1 - y) * preds).sum()
+            FN += (y * (1 - preds)).sum()
+
+        Tversky = (TP + 1e-4) / (TP + alpha * FP + beta * FN + 1e-4)
+        FocalTversky_train = (1 - Tversky)
+
+    with torch.no_grad():
+        TP = 0
+        FP = 0
+        FN = 0
+        for all_data in test_loader:
+            x = all_data[:, 0, :, :]
+            y = all_data[:, 10, :, :]
             x = x.float().unsqueeze(1).to(device=DEVICE)
             y = y.float().unsqueeze(1).to(device=DEVICE)
 
 
             preds = torch.sigmoid(model(x))
             preds = (preds > 0.5).float()
-            num_correct += (preds == y).sum()
-            num_pixels += torch.numel(preds)
-            dice_score += (2 * (preds * y).sum()) / (
-                (preds + y).sum() + 1e-8
+
+            test_num_correct += (preds == y).sum()
+            test_num_pixels += torch.numel(preds)
+            test_dice_score += (2 * (preds * y).sum()) / (
+                    (preds + y).sum() + 1e-8
             )
 
+            # True Positives, False Positives & False Negatives
+
+            TP += (preds * y).sum()
+            FP += ((1 - y) * preds).sum()
+            FN += (y * (1 - preds)).sum()
+
+        Tversky = (TP + 1e-4) / (TP + alpha * FP + beta * FN + 1e-4)
+        FocalTversky_test =  (1 - Tversky)
+
     print(
-        f"Got {num_correct}/{num_pixels} with acc {num_correct/num_pixels*100:.2f}"
+        f"Got for the training set {train_num_correct}/{train_num_pixels} with acc {train_num_correct / train_num_pixels * 100} and Dice score {1-(train_dice_score / len(train_loader))} and FocalTversky Loss {FocalTversky_train}"
     )
-    print(f"Dice score: {dice_score/len(loader)}")
+    print(
+        f"Got for the test set {test_num_correct}/{test_num_pixels} with acc {test_num_correct / test_num_pixels * 100} and Dice score {1-(test_dice_score / len(test_loader))} and FocalTversky Loss {FocalTversky_test}"
+    )
+
     model.train()
-    return  num_correct/num_pixels*100
+    return [[(train_num_correct / train_num_pixels * 100).cpu(), 1-(train_dice_score / len(train_loader)).cpu(),
+             FocalTversky_train.cpu()],
+            [(test_num_correct / test_num_pixels * 100).cpu(), 1-(test_dice_score / len(test_loader)).cpu(),
+             FocalTversky_test.cpu()]]
+
 
 def save_imgs_of_car_removing_background(loader, model2, folder="saved_no_back_images/", device=DEVICE):
     model2.eval()
@@ -208,4 +269,130 @@ def save_predictions_as_imgs(
 
     model.train()
 
+def save_plot_metrics(name: str):
+    data = []
+    headers = None
+    with open(name, 'r') as f:
+        reader = csv.reader(f, delimiter=',')
+        for row in reader:
+            data.append(row)
+    train_metrics = []
+    test_metrics = []
+    for idx, row in enumerate(data):
+        if idx == 0:
+            headers = row
+        elif (idx % 2) == 1:
+            train_metrics.append(row)
+        elif (idx % 2) == 0:
+            test_metrics.append(row)
 
+    epochs = []
+    for i in range(len(train_metrics)):
+        epochs.append(i)
+    recall_train = []
+    recall_test = []
+    dice_train = []
+    dice_test = []
+    for i in train_metrics:
+        recall_train.append(float("{:.2f}".format(float(i[0]))))
+    for i in test_metrics:
+        recall_test.append(float("{:.2f}".format(float(i[0]))))
+    for i in train_metrics:
+        dice_train.append(float("{:.2f}".format(float(i[2]))))
+    for i in test_metrics:
+        dice_test.append(float("{:.2f}".format(float(i[2]))))
+
+    fig = plt.figure(figsize=(12, 4))
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, recall_train, label='train_loss')
+    plt.plot(epochs, recall_test, label='valid_loss')
+    plt.legend()
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, dice_train, label='train_accs')
+    plt.plot(epochs, dice_test, label='valid_accs')
+    plt.legend()
+    plt.savefig('C:/Users/maria/Desktop/project_deep/car_segmentation/metrics/metrics.png')
+
+def save_metrics(metrics, name: str):
+    data = []
+    file_exists = exists(name)
+    header = ['Recal', 'Dice', 'Tversky', 'Cross Entropy', 'Total']
+    for loader in metrics:
+        for i in range(len(loader)):
+            if i == 0:
+                loader[i] = float("{:.2f}".format(float(loader[i].numpy())))
+            else:
+                loader[i] = float("{:.4f}".format(float(loader[i].numpy())))
+        data.append(loader)
+    with open(name, 'a', newline='') as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(header)
+        for i in data:
+            writer.writerow(i)
+    save_plot_metrics(name)
+
+def save_metrics_one_class(metrics, name: str):
+
+
+    data = []
+    file_exists = exists(name)
+    header = ['accuracy' , 'Dice', 'FocalTversky']
+    for loader in metrics:
+        for i in range(len(loader)):
+            if i == 0:
+                loader[i] = float("{:.2f}".format(float(loader[i].numpy())))
+            else:
+                loader[i] = float("{:.4f}".format(float(loader[i].numpy())))
+        data.append(loader)
+    with open(name, 'a', newline='') as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(header)
+        for i in data:
+            writer.writerow(i)
+    save_plot_metrics_one_class(name)
+
+def save_plot_metrics_one_class(name: str):
+    data = []
+    headers = None
+    with open(name, 'r') as f:
+        reader = csv.reader(f, delimiter=',')
+        for row in reader:
+            data.append(row)
+    train_metrics = []
+    test_metrics = []
+    for idx, row in enumerate(data):
+        if idx == 0:
+            headers = row
+        elif (idx % 2) == 1:
+            train_metrics.append(row)
+        elif (idx % 2) == 0:
+            test_metrics.append(row)
+
+    epochs = []
+    for i in range(len(train_metrics)):
+        epochs.append(i)
+    accuracy_train = []
+    accuracy_test = []
+    dice_train = []
+    dice_test = []
+    for i in train_metrics:
+        accuracy_train.append(float("{:.2f}".format(float(i[0]))))
+    for i in test_metrics:
+        accuracy_test.append(float("{:.2f}".format(float(i[0]))))
+    for i in train_metrics:
+        dice_train.append(float("{:.2f}".format(float(i[1]))))
+    for i in test_metrics:
+        dice_test.append(float("{:.2f}".format(float(i[1]))))
+
+    fig = plt.figure(figsize=(12, 4))
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, accuracy_train, label='train_loss')
+    plt.plot(epochs, accuracy_test, label='valid_loss')
+    plt.legend()
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, dice_train, label='train_accs')
+    plt.plot(epochs, dice_test, label='valid_accs')
+    plt.legend()
+    plt.savefig('C:/Users/maria/Desktop/project_deep/car_segmentation/metrics/metrics.png')
