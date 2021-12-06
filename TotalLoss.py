@@ -3,13 +3,19 @@ import torch
 import torch.nn.functional as F
 
 class Total_loss(nn.Module):
-    def __init__(self, weight=None, size_average=True):
+    def __init__(self, weight=None, size_average=True, alpha=0.3, beta=0.7, sigma=0.4 , theta=0.6  ):
         super(Total_loss, self).__init__()
+        self.tversky = 0.0
+        self.ce = 0.0
+        self.alpha = alpha
+        self.beta = beta
+        self.sigma = sigma
+        self.theta = theta
 
-    def forward(self, inputs, targets, smooth=1e-4, alpha=0.3, beta=0.7 ):
-        class_weight = torch.tensor([ 0.5 , 1 , 1 , 1 , 1, 1, 1, 1, 1 ])
+    def forward(self, inputs, targets, smooth=1e-4):
+        class_weight = torch.tensor([ 0.04, 0.12 , 0.12 , 0.12 , 0.12 , 0.12 , 0.12, 0.12, 0.12])
         crossLoss = nn.CrossEntropyLoss(weight= class_weight.cuda() ,reduction='mean', )
-        CE = crossLoss(inputs, targets)
+        self.ce = self.sigma *crossLoss(inputs, targets)
 
         inputs = torch.softmax(inputs, 1)
         # flatten label and prediction tensors
@@ -23,7 +29,7 @@ class Total_loss(nn.Module):
         FP = ((1 - targets_f) * inputs_f).sum()
         FN = (targets_f * (1 - inputs_f)).sum()
 
-        Tversky = 1 - (TP + smooth) / (TP + alpha * FP + beta * FN + smooth)
-        Dice_BCE = 0.4*CE + 0.6*Tversky
+        self.tversky = self.theta * (1 - (TP + smooth) / (TP + self.alpha * FP + self.beta * FN + smooth))
+        Dice_BCE = self.ce + self.tversky
 
         return Dice_BCE
