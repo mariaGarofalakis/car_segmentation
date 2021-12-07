@@ -170,7 +170,6 @@ def check_accuracy_background(train_loader, test_loader, model, device="cuda"):
 
             preds = torch.sigmoid(preds)
             preds = (preds > 0.5).float()
-
             TP_test += (preds * y).sum()
             FN_test += (y * (1 - preds)).sum()
             dice_score_test += (2 * (preds * y).sum()) / (

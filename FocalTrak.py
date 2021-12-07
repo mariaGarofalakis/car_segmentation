@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 class FocalTverskyLoss(nn.Module):

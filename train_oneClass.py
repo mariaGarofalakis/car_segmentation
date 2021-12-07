@@ -18,17 +18,17 @@ from utilis import (
 
 # Hyperparameters etc.
 #LEARNING_RATE = 0.009030518087422224
-LEARNING_RATE = 1e-4
+LEARNING_RATE =1e-4
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 TRAIN_IMG_DIR = "C:/Users/maria/Desktop/project_deep/car_segmentation/trainset"
 TEST_IMG_DIR = "C:/Users/maria/Desktop/project_deep/car_segmentation/testset"
-BATCH_SIZE = 6
-NUM_EPOCHS = 500
+BATCH_SIZE = 8
+NUM_EPOCHS = 800
 NUM_WORKERS = 2
 IMAGE_HEIGHT = 256  # 1280 originally
 IMAGE_WIDTH = 256  # 1918 originally
 PIN_MEMORY = True
-LOAD_MODEL = False
+LOAD_MODEL = True
 
 
 
@@ -80,7 +80,9 @@ def main():
 
     loss_fn =FocalTverskyLoss()
 
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE , weight_decay=1e-5 , amsgrad=True )
+
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-5, amsgrad=True)
+
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
                                                 step_size=3,
                                                  gamma=0.1)

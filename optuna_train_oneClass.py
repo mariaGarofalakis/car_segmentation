@@ -8,7 +8,7 @@ import torch.optim as optim
 import optuna
 import matplotlib.pyplot as plt
 import numpy as np
-import IoULoss
+from FocalTrak import FocalTverskyLoss
 from transforms import Rescale, Normalize, ToTensor, randomHueSaturationValue, randomHorizontalFlip, randomZoom, Grayscale, randomShiftScaleRotate
 from utilis import (
     load_checkpoint,
@@ -21,27 +21,33 @@ from utilis import (
 # Hyperparameters etc.
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-NUM_EPOCHS = 20
+NUM_EPOCHS = 30
 NUM_WORKERS = 2
 IMAGE_HEIGHT = 256  # 1280 originally
 IMAGE_WIDTH = 256  # 1918 originally
 PIN_MEMORY = True
 LOAD_MODEL = False
 
+
+TRAIN_IMG_DIR = "C:/Users/maria/Desktop/project_deep/car_segmentation/trainset"
+TEST_IMG_DIR = "C:/Users/maria/Desktop/project_deep/car_segmentation/testset"
+
+
 class optuna_train_oneClass(object):
     def __init__(self):
-        self.train_image_dir = "C:/Users/maria/Desktop/project_deep/car_segmentation/trainset"
-        self.test_image_dir = "C:/Users/maria/Desktop/project_deep/car_segmentation/testset"
+        self.train_image_dir = TRAIN_IMG_DIR
+        self.test_image_dir = TEST_IMG_DIR
         self.IoU = 1000
+        self.batch_size=4
 
     def suggest_hyperparameters(self, trial):
         # Learning rate on a logarithmic scale
         lr = trial.suggest_float("lr", 1e-5, 1e-2, log=True)
         # Batch size  in the range from 2 to 6 with step size 1
-        batch_size = int(trial.suggest_float("batch_size", 2, 6, step=1))
+        weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
         optimizer_name = trial.suggest_categorical("optimizer_name", ["SGD", "Adam"])
 
-        return lr, batch_size, optimizer_name
+        return lr, weight_decay, optimizer_name
 
 
 
@@ -67,27 +73,27 @@ class optuna_train_oneClass(object):
 
         model = UNET(in_channels=1, out_channels=1).to(DEVICE)
 
-        lr, batch_size, optimizer_name = self.suggest_hyperparameters(trial)
+        lr, weight_decay, optimizer_name = self.suggest_hyperparameters(trial)
 
         # Pick an optimizer based on Optuna's parameter suggestion
         params = [p for p in model.parameters() if p.requires_grad]
         if optimizer_name == "Adam":
-            optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+             optimizer = optim.Adam(model.parameters(), lr=lr , weight_decay=weight_decay , amsgrad=True )
         if optimizer_name == "SGD":
             optimizer = torch.optim.SGD(params, lr=lr,
-                                        momentum=0.9, weight_decay=0.0005)
+                                        momentum=0.9, weight_decay=weight_decay)
 
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
                                                        step_size=3,
                                                        gamma=0.1)
 
-        loss_fn =IoULoss.IoULoss()
+        loss_fn =FocalTverskyLoss()
 
 
         train_loader, test_loader = get_loaders(
             self.train_image_dir,
             self.test_image_dir,
-            batch_size,
+            self.batch_size,
             train_transform,
             test_transforms,
             NUM_WORKERS,
@@ -127,16 +133,12 @@ class optuna_train_oneClass(object):
                 # update tqdm loop
                 loop.set_postfix(loss=loss.item())
             ################################################################################################################
+            print(f"Total Loss: {loss.item()}...Tversky loss: {loss_fn.tversky}... Cross Entropy: {loss_fn.BCE}")
             lr_scheduler.step()
             # save model
-            checkpoint = {
-                "state_dict": model.state_dict(),
-                "optimizer": optimizer.state_dict(),
-            }
-            save_checkpoint_background(checkpoint)
 
             # check accuracy
-            test_IoU =check_accuracy_background(train_loader,test_loader, model, device=DEVICE)[1][2]
+            test_IoU = loss_fn.tversky + loss_fn.BCE
             IoU.append(test_IoU)
 
             trial.report(test_IoU, epoch)
@@ -154,7 +156,7 @@ class optuna_train_oneClass(object):
 
 if __name__ == '__main__':
     trainObj = optuna_train_oneClass()
-    study = optuna.create_study(study_name="Final-project-optuna", direction="minimize",
+    study = optuna.create_study(study_name="Final-project-optuna", direction="maximize",
                                 pruner=optuna.pruners.MedianPruner(
                                     n_startup_trials=5, n_warmup_steps=1
                                 ))
@@ -196,5 +198,3 @@ if __name__ == '__main__':
     plt.savefig('parallel_coordinate.png')
 
     print('teloas')
-
-
