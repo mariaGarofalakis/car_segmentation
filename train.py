@@ -1,23 +1,18 @@
-import numpy as np
 import torch
 import torchvision
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 from model import UNET
-import torch.nn as nn
 import TotalLoss
 import torch.optim as optim
 from transforms import Rescale, Normalize, ToTensor, randomHueSaturationValue, randomHorizontalFlip, randomZoom, Grayscale, randomShiftScaleRotate
-import csv
 from utilis import (
     save_metrics,
     load_checkpoint,
-    save_checkpoint,
     get_loaders,
     check_accuracy,
     save_predictions_as_imgs,
+    check_top_five,
 )
-
 
 # Hyperparameters etc.
 LEARNING_RATE = 1e-4
@@ -32,30 +27,11 @@ NUM_WORKERS = 2
 IMAGE_HEIGHT = 256
 IMAGE_WIDTH = 256
 PIN_MEMORY = True
-LOAD_MODEL = True
+LOAD_MODEL = False
 alpha = 0.3 #Tversky hyperparameters
 beta = 0.7  #Tversky hyperparameters
 sigma = 0.4 #Proportion of Cross entropy loss
 theta = 0.6 #Proportion of Tversk loss
-
-
-
-def plot_images(data):
-
-    data = data.numpy().astype(np.uint8)
-    image = data[:1,:,:]
-    masks = data[1:]
-
-    img = np.transpose(image, (1, 2, 0))
-    masks = np.transpose(masks, (1, 2, 0))
-
-    fig, ax = plt.subplots(1, 11, figsize=(10, 3))
-    ax[0].imshow(img)
-
-    for it in range(1, len(ax)):
-        ax[it].imshow(masks[:,:,it - 1])
-    plt.show()
-
 
 def train_fn(loader, model, optimizer, loss_fn, scaler):
     loop = tqdm(loader)
@@ -79,7 +55,15 @@ def train_fn(loader, model, optimizer, loss_fn, scaler):
 
         # update tqdm loop
         loop.set_postfix(loss=loss.item())
+
     print(f"Total Loss: {loss.item()}...Tversky loss: {loss_fn.tversky}... Cross Entropy: {loss_fn.ce}")
+
+    # If model is on the top 5 save it
+    checkpoint = {
+        "state_dict": model.state_dict(),
+        "optimizer": optimizer.state_dict(),
+    }
+    check_top_five("../checkpoints/baseline/", "baseline.json", loss_fn.tversky.item(), checkpoint)
 
 def main():
     train_transform = torchvision.transforms.Compose([
@@ -103,6 +87,7 @@ def main():
     model = UNET(in_channels=1, out_channels=9).to(DEVICE)
     loss_fn = TotalLoss.Total_loss(alpha=alpha , beta=beta , sigma=sigma , theta=theta)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE , weight_decay=1e-5 , amsgrad=True )
+    scaler = torch.cuda.amp.GradScaler()
 
     train_loader, test_loader = get_loaders(
         TRAIN_IMG_DIR,
@@ -117,39 +102,16 @@ def main():
     if LOAD_MODEL:
         load_checkpoint(torch.load("final_model.pth.tar"), model)
 
-
- #   check_accuracy(test_loader, model, device=DEVICE)
-    scaler = torch.cuda.amp.GradScaler()
-
-    #lambda1 = lambda epoch: 0.99 ** epoch
-    #scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
-
     for epoch in range(NUM_EPOCHS):
         print(f"Traing epoch: {epoch}.............................")
         train_fn(train_loader, model, optimizer, loss_fn, scaler)
 
-        # save model
-        checkpoint = {
-            "state_dict": model.state_dict(),
-            "optimizer":optimizer.state_dict(),
-        }
-        save_checkpoint(checkpoint,filename="final_model.pth.tar")
-        #scheduler.step()
-
         # check accuracy
-        tmp_metrics = []
-        tmp_metrics = check_accuracy( train_loader ,test_loader, model, device=DEVICE)
-
-        save_metrics(tmp_metrics,'../metrics/metrics_final.csv')
-
-        # print some examples to a folder
-        #save_predictions_as_imgs(
-        #    test_loader, model, folder="saved_images/", device=DEVICE
-        #)
+        tmp_metrics = check_accuracy(train_loader ,test_loader, model, device=DEVICE)
+        #Save metrics
+        save_metrics(tmp_metrics,'../metrics/baseline.csv')
 
 if __name__ == '__main__':
     main()
-
-    print('teloas')
 
 

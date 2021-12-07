@@ -1,6 +1,4 @@
-import numpy as np
 import torch
-import torch.nn as nn
 import torchvision
 from dataset import create_dataset
 from torch.utils.data import DataLoader
@@ -8,7 +6,9 @@ import TotalLoss
 import csv
 from os.path import exists
 import matplotlib.pyplot as plt
+import json
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
 
 def plot_metrics(name: str):
     data = []
@@ -52,18 +52,19 @@ def plot_metrics(name: str):
     plt.plot( epochs, dice_train, label='train_accs')
     plt.plot(epochs, dice_test, label='valid_accs')
     plt.legend()
-    plt.savefig('../metrics/metrics_final.png')
+    plt.savefig('../metrics/metrics_baseline.png')
+
 
 def save_metrics(metrics,name: str):
     data = []
     file_exists = exists(name)
-    header = ['Recal', 'Dice', 'Tversky', 'Cross Entropy', 'Total']
+    header = ['Recal', 'Dice', 'Tversky', 'Cross Entropy', 'Total', 'IoU']
     for loader in metrics:
         for i in range(len(loader)):
             if i ==0:
-                loader[i] =  float ( "{:.2f}".format( float( loader[i].numpy()) ) )
+                loader[i] =  float ( "{:.2f}".format( float( loader[i].cpu().numpy()) ) )
             else:
-                loader[i] = float("{:.4f}".format(float(loader[i].numpy())))
+                loader[i] = float("{:.4f}".format(float(loader[i].cpu().numpy())))
         data.append(loader)
     with open(name, 'a',newline='') as f:
         writer = csv.writer(f)
@@ -73,13 +74,16 @@ def save_metrics(metrics,name: str):
             writer.writerow(i)
     plot_metrics(name)
 
+
 def save_checkpoint(state, filename="my_checkpoint.pth.tar"):
     print("=> Saving checkpoint")
     torch.save(state, filename)
 
+
 def load_checkpoint(checkpoint, model):
     print("=> Loading checkpoint")
     model.load_state_dict(checkpoint["state_dict"])
+
 
 def get_loaders(train_dir , test_dir, batch_size, train_transform, test_transform, num_workers=4, pin_memory=True):
     train_ds = create_dataset(image_dir=train_dir, train=True, transform = train_transform)
@@ -102,24 +106,32 @@ def get_loaders(train_dir , test_dir, batch_size, train_transform, test_transfor
 
     return train_loader, test_loader
 
+
 def check_accuracy( train_loader ,test_loader, model, device="cuda"):
-    TP_test=0
-    FN_test=0
-    TP_train = 0
-    FN_train = 0
-    dice_score_train = 0
-    dice_score_test = 0
-    cross_loss_train = 0
-    total_loss_train = 0
-    cross_loss_test = 0
-    total_loss_test = 0
-    Tversky_test = 0
-    Tversky_train =0
+    TP_test = 0.0
+    FN_test = 0.0
+    total_test = 0.0
+    union_test = 0.0
+    TP_test_modified = 0.0
+    FN_test_modified = 0.0
+    dice_score_test = 0.0
+    cross_loss_test = 0.0
+    total_loss_test = 0.0
+    Tversky_test = 0.0
+
+    TP_train = 0.0
+    FN_train = 0.0
+    total_train = 0.0
+    TP_train_modified = 0.0
+    FN_train_modified = 0.0
+    dice_score_train = 0.0
+    cross_loss_train = 0.0
+    total_loss_train = 0.0
+    Tversky_train = 0.0
 
     model.eval()
 
-    class_weight = torch.tensor([ 0.04, 0.12 , 0.12 , 0.12 , 0.12 , 0.12 , 0.12, 0.12, 0.12])
-    closs = nn.CrossEntropyLoss(weight=class_weight.to(device=DEVICE), reduction='mean')
+    #Set loss function
     total = TotalLoss.Total_loss()
 
     with torch.no_grad():
@@ -130,31 +142,27 @@ def check_accuracy( train_loader ,test_loader, model, device="cuda"):
             y = y.float().to(device=DEVICE)
 
             preds = model(x)
-            cross_loss_test += closs(preds, y)
-            total_loss_test += total(preds,y)
+            loss = total(preds, y)
+            total_loss_test += loss
+            cross_loss_test += total.ce
+            Tversky_test += total.tversky
 
             preds = torch.softmax(preds, 1)
             preds = (torch.zeros(preds.shape).scatter(1, preds.argmax(1).unsqueeze(1).cpu(), 1.0)).to(device=DEVICE)
 
-            TP_test += (preds[:, 1:9, :, :] * y[:, 1:9, :, :]).sum()
-            FN_test += (y[:, 1:9, :, :] * (1 - preds[:, 1:9, :, :])).sum()
+            TP_test_modified += (preds[:, 1:9, :, :] * y[:, 1:9, :, :]).sum()
+            FN_test_modified += (y[:, 1:9, :, :] * (1 - preds[:, 1:9, :, :])).sum()
+            TP_test += (preds * y).sum()
+            FN_test += (y * (1 - preds)).sum()
+            total_test += (preds + y).sum()
+
             dice_score_test += (2 * (preds * y).sum()) / (
                 (preds + y).sum() + 1e-8
             )
-
-
-            # flatten label and prediction tensors
-            inputs_f = preds.view(-1)
-            targets_f = y.view(-1)
-            inputs = preds[:, 1:9, :, :].reshape(-1)
-            targets = y[:, 1:9, :, :].reshape(-1)
-            TP = (inputs * targets).sum()
-            FP = ((1 - targets_f) * inputs_f).sum()
-            FN = (targets_f * (1 - inputs_f)).sum()
-            Tversky_test += ( TP + 1e-4) / (TP + 0.3*FP + 0.7*FN + 1e-4)
-
+    union_test += total_test - TP_test
     print(
-        f"Testing set:....Recall: {TP_test/(TP_test+FN_test)*100:.2f} ,...Dice score: {1-dice_score_test/len(test_loader)} ,...Tversky loss: {0.6*(1-Tversky_test/len(test_loader))},...Cross_entropy: {0.4*(1-cross_loss_test/len(test_loader))}"
+        f"Testing set:...Recall: {TP_test/(TP_test+FN_test)*100:.2f} ,...Car Recall: {TP_test_modified/(TP_test_modified+FN_test_modified)*100} ,...Dice score: {1-dice_score_test/len(test_loader)} "
+        f",...Tversky loss: {Tversky_test/len(test_loader)},...Cross_entropy: {cross_loss_test/len(test_loader)}"
     )
 
     with torch.no_grad():
@@ -165,36 +173,78 @@ def check_accuracy( train_loader ,test_loader, model, device="cuda"):
             y = y.float().to(device=DEVICE)
 
             preds = model(x)
-            cross_loss_train += closs(preds, y)
-            total_loss_train += total(preds, y)
+            loss = total(preds, y)
+            total_loss_train += loss
+            cross_loss_train += total.ce
+            Tversky_train += total.tversky
 
             preds = torch.softmax(preds, 1)
             preds = (torch.zeros(preds.shape).scatter(1, preds.argmax(1).unsqueeze(1).cpu(), 1.0)).to(device=DEVICE)
 
-            TP_train += (preds[:,1:9,:,:] * y[:,1:9,:,:]).sum()
-            FN_train += (y[:,1:9,:,:] * (1 - preds[:,1:9,:,:])).sum()
+            TP_train_modified += (preds[:, 1:9, :, :] * y[:, 1:9, :, :]).sum()
+            FN_train_modified += (y[:, 1:9, :, :] * (1 - preds[:, 1:9, :, :])).sum()
+            TP_train += (preds * y).sum()
+            FN_train += (y * (1 - preds)).sum()
+            total_train += (preds + y).sum()
+
+
             dice_score_train += (2 * (preds * y).sum()) / (
-                      (preds + y).sum() + 1e-8 )
+                    (preds + y).sum() + 1e-8
+            )
+        union_train = total_train - TP_train
+        print(
+            f"Training set:...Recall: {TP_train / (TP_train + FN_train) * 100:.2f} ,...Car Recall: {TP_train_modified/(TP_train_modified+FN_train_modified)*100} ,...Dice score: {1 - dice_score_train / len(train_loader)} "
+            f",...Tversky loss: {Tversky_train / len(train_loader)},...Cross_entropy: {cross_loss_train / len(train_loader)}"
+        )
 
-            cross_loss = closs(preds, y)
-            # flatten label and prediction tensors
-            inputs_f = preds.view(-1)
-            targets_f = y.view(-1)
-            inputs = preds[:, 1:9, :, :].reshape(-1)
-            targets = y[:, 1:9, :, :].reshape(-1)
-            TP = (inputs * targets).sum()
-            FP = ((1 - targets_f) * inputs_f).sum()
-            FN = (targets_f * (1 - inputs_f)).sum()
-            Tversky_train += ( TP + 1e-4) / (TP + 0.3*FP + 0.7*FN + 1e-4)
-
-
-    print(
-        f"Training set:...Recall: {TP_train/(TP_train+FN_train)*100:.2f} , dice score: {1-dice_score_train/len(train_loader)},...Tversky loss: {0.6*(1-Tversky_test/len(train_loader))},...Cross_entropy: {0.4*(1-cross_loss_test/len(train_loader))}"
-    )
     model.train()
 
-    return [[(TP_train/(TP_train+FN_train)).cpu()*100, 1 - (dice_score_train/len(train_loader)).cpu(),1-(Tversky_train/len(train_loader)).cpu(), (cross_loss_train/len(train_loader)).cpu() , (total_loss_train/len(train_loader)).cpu()] ,
-      [(TP_test/(TP_test+FN_test)).cpu()*100, 1 - (dice_score_test/len(test_loader)).cpu(), 1-(Tversky_test/len(test_loader)).cpu(), (cross_loss_test/len(test_loader)).cpu(), (total_loss_test/len(test_loader)).cpu()]]
+    #Return [ [train_metris] , [test_metrics] ] = [ [Recall,Dice,Tversky(used),Cross-Entropy(used),Total(used),IoU, Recall_modified] , [Recall,...,Recall_modified] ]
+    return [
+                [(TP_train/(TP_train+FN_train))*100, 1 - (dice_score_train/len(train_loader)),
+                 (Tversky_train/len(train_loader)),
+                 (cross_loss_train/len(train_loader)), (total_loss_train/len(train_loader)),
+                 (TP_train+1e-8)/(union_train+1e-8),
+                 (TP_train_modified/(TP_train_modified+FN_train_modified))*100],
+                [(TP_test / (TP_test + FN_test)) * 100, 1 - (dice_score_test / len(test_loader)),
+                 (Tversky_test / len(test_loader)),
+                 (cross_loss_test / len(test_loader)), (total_loss_test / len(test_loader)),
+                 (TP_test + 1e-8) / (union_test + 1e-8),
+                 (TP_test_modified/(TP_test_modified+FN_test_modified))*100]
+            ]
+
+
+def check_top_five(dir, name, metric, model_snapshot):
+    dictionary = {
+            "checkpoint_0": float('inf'),
+            "checkpoint_1": float('inf'),
+            "checkpoint_2": float('inf'),
+            "checkpoint_3": float('inf'),
+            "checkpoint_4": float('inf')
+    }
+    if not exists(dir+name):
+        json_object = json.dumps(dictionary)
+        with open(dir+name, "w") as outfile:
+            outfile.write(json_object)
+        outfile.close()
+
+    f = open(dir+name, 'r')
+    data = json.load(f)
+    data = dict(sorted(data.items(), key=lambda item: item[1], reverse=True))
+    checkpoint = next(iter(data))
+    print(f"{data[checkpoint]} > {metric}????")
+    if data[checkpoint] > metric:
+        data[checkpoint] = metric
+        save_checkpoint(model_snapshot, filename=dir+checkpoint+".pth.tar")
+    else:
+        print("Checkpoint is not in top 5 :'(")
+    f.close()
+
+    with open(dir + name, "w") as file:
+        json_object = json.dumps(data)
+        file.write(json_object)
+    file.close()
+
 
 def save_predictions_as_imgs(
     loader, model, folder="saved_images/", device="cuda"
